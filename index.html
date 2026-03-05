@@ -1665,6 +1665,158 @@
       cursor: pointer;
     }
 
+    /* ── View Toggle ── */
+    .view-toggle {
+      display: flex;
+      background: var(--bg);
+      border-radius: 12px;
+      padding: 3px;
+      gap: 2px;
+    }
+
+    .view-toggle-btn {
+      flex: 1;
+      padding: 7px 14px;
+      border-radius: 10px;
+      border: none;
+      background: transparent;
+      font-family: "DM Sans", sans-serif;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--muted);
+      cursor: pointer;
+      transition: background 0.18s, color 0.18s, box-shadow 0.18s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      line-height: 1;
+    }
+
+    .view-toggle-btn.active {
+      background: var(--panel);
+      color: var(--ink);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    .view-toggle-btn:not(.active):hover {
+      color: var(--ink);
+    }
+
+    .view-toggle-icon {
+      font-size: 0.92rem;
+      line-height: 1;
+    }
+
+    /* ── List View ── */
+    .list-view {
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      padding: 6px 0 0;
+    }
+
+    .list-view.active {
+      display: flex;
+    }
+
+    .list-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--panel);
+      border: 1px solid #e7edf5;
+      border-radius: 16px;
+      padding: 12px 14px;
+      cursor: pointer;
+      transition: background 0.15s, box-shadow 0.15s;
+      box-shadow: 0 2px 8px -4px rgba(30, 42, 59, 0.08);
+    }
+
+    .list-card:hover {
+      background: var(--bg);
+      box-shadow: 0 4px 14px -6px rgba(30, 42, 59, 0.14);
+    }
+
+    .list-card:active {
+      transform: scale(0.985);
+    }
+
+    .list-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 800;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+    }
+
+    .list-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .list-name {
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: var(--ink);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .list-subtitle {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 1px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .list-detail {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      opacity: 0.75;
+    }
+
+    .list-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .list-right .category-tag {
+      font-size: 0.55rem;
+    }
+
+    .list-chevron {
+      font-size: 0.8rem;
+      color: var(--line);
+      line-height: 1;
+    }
+
+    .list-count {
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--muted);
+      padding: 8px 0 4px;
+      font-weight: 500;
+    }
+
   </style>
 </head>
 <body>
@@ -1866,6 +2018,16 @@
           <input id="searchInput" class="search" placeholder="Search name, company, email..." />
         </div>
 
+        <!-- View toggle -->
+        <div class="view-toggle" id="viewToggle">
+          <button class="view-toggle-btn active" id="toggleDeckBtn" data-view="deck">
+            <span class="view-toggle-icon">📇</span> Deck
+          </button>
+          <button class="view-toggle-btn" id="toggleListBtn" data-view="list">
+            <span class="view-toggle-icon">☰</span> List
+          </button>
+        </div>
+
         <!-- Category filter pills -->
         <div class="filter-bar" id="filterBar"></div>
 
@@ -1884,7 +2046,11 @@
           <div id="count" class="count">0 / 0</div>
           <button id="nextBtn" class="round" aria-label="Next card">↑</button>
         </div>
-        <p class="swipe-hint">Swipe down for next card, swipe up for previous</p>
+        <p class="swipe-hint" id="swipeHint">Swipe down for next card, swipe up for previous</p>
+
+        <!-- List view (alternative to deck) -->
+        <div id="listView" class="list-view"></div>
+        <p id="listCount" class="list-count" style="display:none;"></p>
       </div>
 
       <div id="settingsScreen" class="screen">
@@ -2254,7 +2420,8 @@
       imageFile: null,
       ocrRawText: "",
       pendingCardColors: null,
-      activeCategory: ""
+      activeCategory: "",
+      viewMode: "deck"
     };
 
     const probableTitles = [
@@ -2284,7 +2451,7 @@
         syncFilter();
         state.activeIndex = 0;
         renderFilterPills();
-        renderDeck();
+        renderCurrentView();
         showScreen("deck");
         setStatus("Demo contacts loaded.");
       });
@@ -2294,7 +2461,7 @@
         syncFilter();
         state.activeIndex = 0;
         renderFilterPills();
-        renderDeck();
+        renderCurrentView();
         showScreen("deck");
         setStatus("Demo contacts loaded.");
       });
@@ -2305,7 +2472,7 @@
         syncFilter();
         state.activeIndex = 0;
         renderFilterPills();
-        renderDeck();
+        renderCurrentView();
         showScreen("deck");
         setStatus("All contacts cleared.");
       });
@@ -2338,7 +2505,7 @@
         syncFilter();
         state.activeIndex = 0;
         renderFilterPills();
-        renderDeck();
+        renderCurrentView();
         clearForm(false);
         showScreen("deck");
         setStatus("Contact added to your roledex.");
@@ -2347,7 +2514,7 @@
       elements.search.addEventListener("input", () => {
         syncFilter();
         state.activeIndex = 0;
-        renderDeck();
+        if (state.viewMode === "list") renderList(); else renderDeck();
       });
 
       elements.prev.addEventListener("click", () => rotateDeck(-1));
@@ -2383,7 +2550,8 @@
         persistContacts();
         syncFilter();
         state.activeIndex = 0;
-        renderDeck();
+        renderFilterPills();
+        renderCurrentView();
         document.getElementById("delAccountOverlay").classList.remove("open");
         showScreen("deck");
         setStatus("Account data cleared.");
@@ -2407,6 +2575,83 @@
         const input = document.getElementById("editCustomCatInput");
         wrap.classList.toggle("visible", this.value === "__custom__");
         if (this.value === "__custom__") input.focus();
+      });
+
+      // View toggle (deck ↔ list)
+      document.getElementById("toggleDeckBtn").addEventListener("click", () => switchView("deck"));
+      document.getElementById("toggleListBtn").addEventListener("click", () => switchView("list"));
+    }
+
+    function switchView(mode) {
+      state.viewMode = mode;
+      const isDeck = mode === "deck";
+
+      document.getElementById("toggleDeckBtn").classList.toggle("active", isDeck);
+      document.getElementById("toggleListBtn").classList.toggle("active", !isDeck);
+
+      document.getElementById("deckViewport").style.display = isDeck ? "" : "none";
+      document.getElementById("prevBtn").parentElement.style.display = isDeck ? "" : "none";
+      document.getElementById("swipeHint").style.display = isDeck ? "" : "none";
+
+      document.getElementById("listView").classList.toggle("active", !isDeck);
+      document.getElementById("listCount").style.display = isDeck ? "none" : "";
+
+      if (isDeck) {
+        renderDeck();
+      } else {
+        renderList();
+      }
+    }
+
+    function renderCurrentView() {
+      if (state.viewMode === "list") renderList(); else renderDeck();
+    }
+
+    function renderList() {
+      const listEl = document.getElementById("listView");
+      const countEl = document.getElementById("listCount");
+      listEl.innerHTML = "";
+
+      elements.summary.textContent = `${state.contacts.length} contact${state.contacts.length === 1 ? "" : "s"} saved`;
+
+      if (!state.filtered.length) {
+        countEl.textContent = "";
+        listEl.innerHTML = `
+          <div class="empty" style="display:flex; padding: 40px 24px;">
+            <div class="empty-icon">📇</div>
+            <strong>No contacts yet</strong>
+            <p>Scan a business card to add your first contact to Rolo.</p>
+            <button class="empty-cta" onclick="showScreen('scan')">Scan Your First Card</button>
+          </div>`;
+        return;
+      }
+
+      countEl.textContent = `${state.filtered.length} contact${state.filtered.length === 1 ? "" : "s"}`;
+
+      state.filtered.forEach((item) => {
+        const initial = escapeHtml((item.name || item.company || "?").slice(0, 1).toUpperCase());
+        const subtitleParts = [item.title, item.company].filter(Boolean);
+        const contactLine = item.phone || item.email || "";
+        const catObj = item.category ? CATEGORIES.find((c) => c.key === item.category) : null;
+        const catLabel = catObj ? catObj.label : (item.category || "");
+        const catHtml = catLabel ? `<span class="category-tag">${escapeHtml(catLabel)}</span>` : "";
+        const avatarBg = item.cardColors ? item.cardColors.accentHex : "var(--accent)";
+
+        const card = document.createElement("div");
+        card.className = "list-card";
+        card.innerHTML = `
+          <div class="list-avatar" style="background:${avatarBg}">${initial}</div>
+          <div class="list-info">
+            <p class="list-name">${escapeHtml(item.name || "Unnamed")}</p>
+            ${subtitleParts.length ? `<p class="list-subtitle">${escapeHtml(subtitleParts.join(" · "))}</p>` : ""}
+            ${contactLine ? `<p class="list-detail">${escapeHtml(contactLine)}</p>` : ""}
+          </div>
+          <div class="list-right">
+            ${catHtml}
+            <span class="list-chevron">›</span>
+          </div>`;
+        card.addEventListener("click", () => openDetailOverlay(item));
+        listEl.appendChild(card);
       });
     }
 
@@ -2655,7 +2900,7 @@
         syncFilter();
         state.activeIndex = 0;
         renderFilterPills();
-        renderDeck();
+        if (state.viewMode === "list") renderList(); else renderDeck();
       });
       bar.appendChild(allPill);
 
@@ -2674,7 +2919,7 @@
           syncFilter();
           state.activeIndex = 0;
           renderFilterPills();
-          renderDeck();
+          if (state.viewMode === "list") renderList(); else renderDeck();
         });
         bar.appendChild(pill);
       });
@@ -2690,7 +2935,7 @@
           syncFilter();
           state.activeIndex = 0;
           renderFilterPills();
-          renderDeck();
+          if (state.viewMode === "list") renderList(); else renderDeck();
         });
         bar.appendChild(pill);
       });
@@ -2917,7 +3162,8 @@
       persistContacts();
       syncFilter();
       state.activeIndex = Math.min(state.activeIndex, Math.max(0, state.filtered.length - 1));
-      renderDeck();
+      renderFilterPills();
+      renderCurrentView();
       setStatus("Contact removed.");
     }
 
@@ -3159,7 +3405,7 @@
       persistContacts();
       syncFilter();
       renderFilterPills();
-      renderDeck();
+      renderCurrentView();
       closeEditOverlay();
       setStatus("Contact updated.");
     });
