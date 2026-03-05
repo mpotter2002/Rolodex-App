@@ -1,0 +1,1309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Roledex Scan</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <style>
+    :root {
+      --bg: #f5f7fa;
+      --bg-soft: #e8edf4;
+      --panel: #ffffff;
+      --ink: #151821;
+      --muted: #677082;
+      --accent: #0d766e;
+      --accent-soft: #d8f4f1;
+      --line: #dde4ee;
+      --danger: #c62828;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "DM Sans", sans-serif;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 20% 0%, #ffffff 0%, transparent 36%),
+        radial-gradient(circle at 95% 18%, #dff2ef 0%, transparent 40%),
+        linear-gradient(145deg, var(--bg) 0%, var(--bg-soft) 100%);
+      color: var(--ink);
+      display: grid;
+      place-items: center;
+      padding: 8px;
+    }
+
+    .app {
+      width: min(420px, 100%);
+      height: min(880px, calc(100vh - 16px));
+      background: var(--panel);
+      border-radius: 34px;
+      border: 1px solid #f0f3f8;
+      box-shadow: 0 24px 50px -34px rgba(25, 36, 52, 0.34);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .header {
+      padding: max(14px, env(safe-area-inset-top)) 18px 14px;
+      border-bottom: 1px solid #eef2f6;
+      background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+    }
+
+    .header-top { display: flex; align-items: center; justify-content: center; }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 30% 28%, #7ce8df, #0d766e 68%);
+      box-shadow: 0 0 0 5px #d4f1ee;
+    }
+
+    .view {
+      flex: 1;
+      overflow: auto;
+      padding: 14px 14px 96px;
+    }
+
+    .screen {
+      display: none;
+      gap: 12px;
+      flex-direction: column;
+      animation: fade .2s ease;
+    }
+
+    .screen.active { display: flex; }
+
+    @keyframes fade { from { opacity: .6; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+    .card {
+      background: #fff;
+      border: 1px solid #e7edf5;
+      border-radius: 20px;
+      padding: 12px;
+      box-shadow: 0 12px 28px -26px rgba(30, 42, 59, 0.5);
+    }
+
+    .upload {
+      position: relative;
+      border: 1.5px dashed #b8c6d8;
+      border-radius: 16px;
+      min-height: 160px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(155deg, #ffffff 0%, #f6f9fd 100%);
+      overflow: hidden;
+    }
+
+    .upload input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      z-index: 2;
+    }
+
+    .preview {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: none;
+    }
+
+    .upload-content { text-align: center; z-index: 1; padding: 16px; }
+    .upload-content strong { display: block; margin-bottom: 4px; letter-spacing: -0.01em; }
+    .upload-content small { color: var(--muted); font-size: 0.83rem; }
+
+    .upload-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      margin: 0 auto 8px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(160deg, #ebf4ff 0%, #e5fbf5 100%);
+      font-size: 1rem;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    button { font: inherit; border: 0; cursor: pointer; }
+
+    .btn {
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .btn-primary {
+      color: #fff;
+      background: var(--accent);
+      box-shadow: 0 12px 22px -16px rgba(13, 118, 110, 0.8);
+    }
+
+    .btn-subtle {
+      background: #fff;
+      border: 1px solid var(--line);
+      color: var(--ink);
+    }
+
+    .status {
+      min-height: 20px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-top: 10px;
+    }
+
+    .status.error { color: var(--danger); }
+
+    .fields {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .field label {
+      display: block;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #647082;
+      margin-bottom: 4px;
+      font-weight: 700;
+    }
+
+    .field input,
+    .field textarea,
+    .search {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 11px;
+      font: inherit;
+      color: var(--ink);
+      background: #fff;
+      font-size: 0.9rem;
+    }
+
+    .field textarea {
+      min-height: 72px;
+      resize: vertical;
+      max-height: 160px;
+    }
+
+    .deck-top {
+      display: grid;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .deck-top p {
+      font-size: 0.84rem;
+      color: var(--muted);
+    }
+
+    .settings-wrap {
+      display: grid;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .settings-title {
+      font-size: 1.02rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin-bottom: 2px;
+    }
+
+    .settings-copy {
+      color: var(--muted);
+      font-size: 0.84rem;
+      line-height: 1.4;
+    }
+
+    .deck {
+      position: relative;
+      height: 470px;
+      perspective: 1400px;
+      overflow: visible;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 8px;
+      margin-bottom: 4px;
+      transform-style: preserve-3d;
+    }
+
+    .deck::before {
+      content: "";
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      top: 50%;
+      height: 8px;
+      transform: translateY(-50%);
+      border-radius: 999px;
+      background: linear-gradient(180deg, #c7d1de 0%, #eef3fb 45%, #b8c4d2 100%);
+      box-shadow:
+        0 2px 8px rgba(24, 36, 58, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+      z-index: 1;
+      opacity: 0.92;
+    }
+
+    .deck .axle {
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #f7fbff 0%, #ccd7e5 100%);
+      border: 1px solid #aab8ca;
+      box-shadow:
+        0 4px 10px rgba(42, 56, 77, 0.24),
+        inset 0 1px 0 rgba(255, 255, 255, 0.85);
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 3;
+      opacity: 0.95;
+    }
+
+    .deck .axle::after {
+      content: "";
+      position: absolute;
+      inset: 6px;
+      border-radius: 999px;
+      border: 1px solid rgba(128, 142, 163, 0.8);
+      background: radial-gradient(circle at 35% 30%, #f8fbff 0%, #d8e1ee 68%, #b7c3d4 100%);
+    }
+
+    .deck .axle.left { left: 14px; }
+    .deck .axle.right { right: 14px; }
+
+    .cards {
+      width: min(360px, 96%);
+      height: 300px;
+      position: relative;
+      transform-style: preserve-3d;
+      z-index: 2;
+      overflow: visible;
+      border-radius: 20px;
+    }
+
+    .rolocard {
+      position: absolute;
+      inset: 0;
+      overflow: visible;
+      border-radius: 20px;
+      border: 1px solid #edf1f6;
+      background: linear-gradient(170deg, #ffffff 0%, #f7f9fc 100%);
+      box-shadow: 0 16px 28px -20px rgba(24, 33, 47, 0.45);
+      padding: 14px;
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+      gap: 10px;
+      transform: rotateX(0deg) translateZ(0) scale(1);
+      transform-origin: center calc(50% + 126px);
+      backface-visibility: hidden;
+    }
+
+    .rolocard::before,
+    .rolocard::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      width: 18px;
+      height: 18px;
+      margin-top: -9px;
+      border-radius: 999px;
+      border: 1px solid #ced8e6;
+      background:
+        radial-gradient(circle at center, #f4f7fc 0 4px, #d6e0ee 4.2px 8px, #b3c1d4 8.2px 100%);
+      box-shadow: 0 1px 3px rgba(27, 40, 61, 0.18);
+      z-index: 1;
+    }
+
+    .rolocard::before { left: -10px; }
+    .rolocard::after { right: -10px; }
+
+    .rolocard.current,
+    .rolocard.transition {
+      box-shadow: 0 22px 36px -26px rgba(24, 33, 47, 0.55);
+    }
+
+    .rolocard.backdrop {
+      pointer-events: none;
+      filter: saturate(0.75);
+      box-shadow: 0 10px 18px -18px rgba(24, 33, 47, 0.6);
+    }
+
+    .rolocard.backdrop .row button { display: none; }
+    .rolocard.backdrop .notes { display: none; }
+    .rolocard.backdrop .meta { display: none; }
+    .rolocard.backdrop .footer { display: none; }
+    .rolocard.backdrop .title { display: none; }
+    .rolocard.backdrop h3 { display: none; }
+    .rolocard.backdrop .row { justify-content: center; }
+    .rolocard.backdrop .chip { max-width: 180px; }
+
+    .rolocard.backdrop-top {
+      opacity: 0.24;
+      transform: rotateX(-36deg) translateZ(-84px) scale(0.9);
+    }
+
+    .rolocard.backdrop-bottom {
+      opacity: 0.32;
+      transform: rotateX(36deg) translateZ(-84px) scale(0.9);
+    }
+
+    .rolocard.backdrop-far-top {
+      opacity: 0.14;
+      transform: rotateX(-62deg) translateZ(-180px) scale(0.82);
+    }
+
+    .rolocard.backdrop-far-bottom {
+      opacity: 0.18;
+      transform: rotateX(62deg) translateZ(-180px) scale(0.82);
+    }
+
+    .rolocard.transition { pointer-events: none; }
+    .rolocard.transition .meta,
+    .rolocard.transition .notes,
+    .rolocard.transition .footer {
+      opacity: 0;
+    }
+    .rolocard.current-up { animation: card-out-up .56s cubic-bezier(.25,.7,.2,1) forwards; }
+    .rolocard.next-up { animation: card-in-up .56s cubic-bezier(.25,.7,.2,1) forwards; }
+    .rolocard.current-down { animation: card-out-down .56s cubic-bezier(.25,.7,.2,1) forwards; }
+    .rolocard.next-down { animation: card-in-down .56s cubic-bezier(.25,.7,.2,1) forwards; }
+    .rolocard.backdrop-up { animation: backdrop-shift-up .56s cubic-bezier(.25,.7,.2,1) forwards; }
+    .rolocard.backdrop-down { animation: backdrop-shift-down .56s cubic-bezier(.25,.7,.2,1) forwards; }
+
+    @keyframes card-out-up {
+      from { opacity: 1; transform: rotateX(0deg) translateZ(0) scale(1); }
+      to { opacity: 0; transform: rotateX(-92deg) translateZ(-72px) scale(.9); }
+    }
+
+    @keyframes card-in-up {
+      from { opacity: 0; transform: rotateX(92deg) translateZ(-72px) scale(.9); }
+      to { opacity: 1; transform: rotateX(0deg) translateZ(0) scale(1); }
+    }
+
+    @keyframes card-out-down {
+      from { opacity: 1; transform: rotateX(0deg) translateZ(0) scale(1); }
+      to { opacity: 0; transform: rotateX(92deg) translateZ(-72px) scale(.9); }
+    }
+
+    @keyframes card-in-down {
+      from { opacity: 0; transform: rotateX(-92deg) translateZ(-72px) scale(.9); }
+      to { opacity: 1; transform: rotateX(0deg) translateZ(0) scale(1); }
+    }
+
+    @keyframes backdrop-shift-up {
+      from { transform: rotateX(28deg) translateZ(-92px) scale(0.94); opacity: 0.36; }
+      to { transform: rotateX(54deg) translateZ(-164px) scale(0.84); opacity: 0.2; }
+    }
+
+    @keyframes backdrop-shift-down {
+      from { transform: rotateX(-28deg) translateZ(-92px) scale(0.94); opacity: 0.36; }
+      to { transform: rotateX(-54deg) translateZ(-164px) scale(0.84); opacity: 0.2; }
+    }
+
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .chip {
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #235d58;
+      background: #eaf8f6;
+      border: 1px solid #c4ebe5;
+      border-radius: 999px;
+      padding: 4px 8px;
+    }
+
+    .rolocard h3 { font-size: 1.22rem; letter-spacing: -0.02em; line-height: 1.1; }
+    .title { color: var(--muted); font-size: 0.95rem; margin-top: -4px; }
+    .meta { display: grid; gap: 8px; font-size: 0.92rem; color: #1f2a39; }
+    .meta div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .notes { font-size: 0.84rem; color: #4f5b6a; line-height: 1.35; max-height: 52px; overflow: auto; }
+    .footer { font-size: 0.8rem; color: #5d6a7d; display: flex; justify-content: space-between; }
+
+    .deck-controls {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .round {
+      width: 36px;
+      height: 36px;
+      border-radius: 999px;
+      background: #fff;
+      border: 1px solid #dce4ef;
+      font-size: 1.02rem;
+    }
+
+    .count {
+      min-width: 84px;
+      text-align: center;
+      font-weight: 700;
+      color: #485568;
+      font-size: 0.85rem;
+    }
+
+    .swipe-hint {
+      text-align: center;
+      color: #5e6a7c;
+      font-size: 0.78rem;
+      margin-top: 2px;
+      letter-spacing: 0.01em;
+    }
+
+    .empty {
+      z-index: 3;
+      text-align: center;
+      color: #617084;
+      padding: 0 20px;
+      font-size: .84rem;
+    }
+
+    .empty strong { display: block; color: #263345; margin-bottom: 4px; }
+
+    .bottom-nav {
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      bottom: max(10px, env(safe-area-inset-bottom));
+      height: 66px;
+      background: rgba(255,255,255,.96);
+      border: 1px solid #e8edf5;
+      border-radius: 20px;
+      display: grid;
+      grid-template-columns: 1fr 72px 1fr;
+      align-items: center;
+      gap: 8px;
+      padding: 8px;
+      box-shadow: 0 14px 28px -24px rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(8px);
+    }
+
+    .nav-btn {
+      height: 100%;
+      border-radius: 14px;
+      background: transparent;
+      color: #4f5b6d;
+      font-size: 0.82rem;
+      font-weight: 700;
+      border: 1px solid transparent;
+    }
+
+    .nav-btn.active {
+      background: #eef4ff;
+      color: #1d2b40;
+      border-color: #dbe6f7;
+    }
+
+    .nav-plus {
+      height: 100%;
+      border-radius: 14px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 1.28rem;
+      font-weight: 800;
+      line-height: 1;
+      box-shadow: 0 10px 20px -14px rgba(13, 118, 110, 0.82);
+    }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="header">
+      <div class="header-top">
+        <div class="logo"><span class="dot"></span>Roledex</div>
+      </div>
+    </header>
+
+    <section class="view">
+      <div id="scanScreen" class="screen">
+        <div class="card">
+          <label class="upload" for="cardImageInput">
+            <input id="cardImageInput" type="file" accept="image/*" capture="environment" />
+            <img id="cardPreview" class="preview" alt="Business card preview" />
+            <div id="uploadHint" class="upload-content">
+              <div class="upload-icon">#</div>
+              <strong>Tap to take a card photo</strong>
+              <small>or upload from your gallery</small>
+            </div>
+          </label>
+
+          <div class="actions">
+            <button id="extractBtn" class="btn btn-primary">Extract From Card</button>
+            <button id="clearBtn" class="btn btn-subtle">Clear Form</button>
+          </div>
+          <button id="demoBtn" class="btn btn-subtle" style="width:100%;margin-top:8px;">Load Demo Contacts</button>
+          <div id="status" class="status">Upload a card image to start.</div>
+        </div>
+
+        <form id="contactForm" class="card fields" autocomplete="off">
+          <div class="field">
+            <label for="name">Name</label>
+            <input id="name" required placeholder="Alex Johnson" />
+          </div>
+          <div class="field">
+            <label for="title">Title</label>
+            <input id="title" placeholder="Head of Partnerships" />
+          </div>
+          <div class="field">
+            <label for="company">Company</label>
+            <input id="company" placeholder="Northline Studio" />
+          </div>
+          <div class="field">
+            <label for="phone">Phone</label>
+            <input id="phone" placeholder="(555) 555-1212" />
+          </div>
+          <div class="field">
+            <label for="email">Email</label>
+            <input id="email" type="email" placeholder="alex@northline.com" />
+          </div>
+          <div class="field">
+            <label for="website">Website</label>
+            <input id="website" placeholder="northline.com" />
+          </div>
+          <div class="field">
+            <label for="address">Address</label>
+            <input id="address" placeholder="123 Main St, Austin, TX" />
+          </div>
+          <div class="field">
+            <label for="notes">Notes</label>
+            <textarea id="notes" placeholder="Optional notes from meeting, project, etc."></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary">Add To Roledex</button>
+        </form>
+      </div>
+
+      <div id="deckScreen" class="screen active">
+        <div class="deck-top">
+          <p id="summary">0 contacts saved</p>
+          <input id="searchInput" class="search" placeholder="Search name, company, email..." />
+        </div>
+
+        <div id="deckViewport" class="deck">
+          <span class="axle left" aria-hidden="true"></span>
+          <span class="axle right" aria-hidden="true"></span>
+          <div id="cards" class="cards"></div>
+          <div id="emptyState" class="empty">
+            <strong>No contacts yet</strong>
+            Scan a card and add your first contact.
+          </div>
+        </div>
+
+        <div class="deck-controls">
+          <button id="prevBtn" class="round" aria-label="Previous card">v</button>
+          <div id="count" class="count">0 / 0</div>
+          <button id="nextBtn" class="round" aria-label="Next card">^</button>
+        </div>
+        <p class="swipe-hint">Swipe up for next card, swipe down for previous</p>
+      </div>
+
+      <div id="settingsScreen" class="screen">
+        <div class="card settings-wrap">
+          <p class="settings-title">Settings</p>
+          <p class="settings-copy">Manage test data and clear your local roledex on this device.</p>
+          <button id="settingsDemoBtn" class="btn btn-subtle">Reload Demo Contacts</button>
+          <button id="settingsClearAllBtn" class="btn btn-subtle" style="border-color:#f1c5c5;color:#9d2b2b;">Clear All Contacts</button>
+        </div>
+      </div>
+    </section>
+
+    <nav class="bottom-nav">
+      <button id="navDeckBtn" class="nav-btn active">Roledex</button>
+      <button id="navPlusBtn" class="nav-plus" aria-label="Add business card">+</button>
+      <button id="navSettingsBtn" class="nav-btn">Settings</button>
+    </nav>
+  </main>
+
+  <script>
+    const STORAGE_KEY = "roledex_contacts_v1";
+    const DEMO_CONTACT_TEMPLATES = [
+      {
+        name: "Maya Chen",
+        title: "Growth Marketing Lead",
+        company: "Northline Studio",
+        phone: "+1 (415) 555-0182",
+        email: "maya@northline.studio",
+        website: "https://northline.studio",
+        address: "1450 Mission St, San Francisco, CA",
+        notes: "Met at ProductCon. Interested in creator partnerships."
+      },
+      {
+        name: "Jordan Ellis",
+        title: "Founder & CEO",
+        company: "Sphere Labs",
+        phone: "+1 (323) 555-0119",
+        email: "jordan@spherelabs.io",
+        website: "https://spherelabs.io",
+        address: "8800 Sunset Blvd, Los Angeles, CA",
+        notes: "Needs pilot rollout in Q2."
+      },
+      {
+        name: "Priya Raman",
+        title: "Head of Partnerships",
+        company: "Bluepeak Health",
+        phone: "+1 (646) 555-0128",
+        email: "priya.raman@bluepeakhealth.com",
+        website: "https://bluepeakhealth.com",
+        address: "501 Madison Ave, New York, NY",
+        notes: "Potential enterprise referral channel."
+      },
+      {
+        name: "Ethan Brooks",
+        title: "Senior Product Designer",
+        company: "Arcfield Digital",
+        phone: "+1 (312) 555-0164",
+        email: "ethan@arcfield.digital",
+        website: "https://arcfield.digital",
+        address: "311 W Monroe St, Chicago, IL",
+        notes: "Wants cleaner onboarding flow and prototype review."
+      },
+      {
+        name: "Sofia Alvarez",
+        title: "Commercial Real Estate Agent",
+        company: "Harbor Point Realty",
+        phone: "+1 (713) 555-0175",
+        email: "sofia@harborpointrealty.com",
+        website: "https://harborpointrealty.com",
+        address: "2100 West Loop S, Houston, TX",
+        notes: "Shared 3 office space options downtown."
+      },
+      {
+        name: "Noah Kim",
+        title: "VP of Operations",
+        company: "Clearway Logistics",
+        phone: "+1 (206) 555-0142",
+        email: "noah.kim@clearwaylogistics.co",
+        website: "https://clearwaylogistics.co",
+        address: "1001 4th Ave, Seattle, WA",
+        notes: "Requested integration timeline and pricing sheet."
+      }
+    ];
+
+    const elements = {
+      input: document.getElementById("cardImageInput"),
+      preview: document.getElementById("cardPreview"),
+      uploadHint: document.getElementById("uploadHint"),
+      extractBtn: document.getElementById("extractBtn"),
+      clearBtn: document.getElementById("clearBtn"),
+      demoBtn: document.getElementById("demoBtn"),
+      navDeckBtn: document.getElementById("navDeckBtn"),
+      navPlusBtn: document.getElementById("navPlusBtn"),
+      navSettingsBtn: document.getElementById("navSettingsBtn"),
+      settingsDemoBtn: document.getElementById("settingsDemoBtn"),
+      settingsClearAllBtn: document.getElementById("settingsClearAllBtn"),
+      status: document.getElementById("status"),
+      form: document.getElementById("contactForm"),
+      search: document.getElementById("searchInput"),
+      deck: document.getElementById("deckViewport"),
+      cards: document.getElementById("cards"),
+      empty: document.getElementById("emptyState"),
+      summary: document.getElementById("summary"),
+      count: document.getElementById("count"),
+      prev: document.getElementById("prevBtn"),
+      next: document.getElementById("nextBtn"),
+      scanScreen: document.getElementById("scanScreen"),
+      deckScreen: document.getElementById("deckScreen"),
+      settingsScreen: document.getElementById("settingsScreen"),
+      fields: {
+        name: document.getElementById("name"),
+        title: document.getElementById("title"),
+        company: document.getElementById("company"),
+        phone: document.getElementById("phone"),
+        email: document.getElementById("email"),
+        website: document.getElementById("website"),
+        address: document.getElementById("address"),
+        notes: document.getElementById("notes")
+      }
+    };
+
+    const state = {
+      contacts: loadContacts(),
+      filtered: [],
+      activeIndex: 0,
+      animating: false,
+      touchStartY: null,
+      imageDataUrl: "",
+      imageFile: null,
+      ocrRawText: ""
+    };
+
+    const probableTitles = [
+      "founder", "ceo", "co-founder", "director", "manager", "lead", "president", "vp", "vice president",
+      "engineer", "designer", "consultant", "partner", "owner", "specialist", "coordinator", "agent", "attorney"
+    ];
+
+    init();
+
+    function init() {
+      if (!state.contacts.length) {
+        seedDemoContacts();
+      }
+      syncFilter();
+      wireEvents();
+      renderDeck();
+    }
+
+    function wireEvents() {
+      elements.input.addEventListener("change", handleImageSelect);
+      elements.extractBtn.addEventListener("click", extractFromImage);
+      elements.clearBtn.addEventListener("click", clearForm);
+      elements.demoBtn.addEventListener("click", () => {
+        seedDemoContacts(true);
+        syncFilter();
+        state.activeIndex = 0;
+        renderDeck();
+        showScreen("deck");
+        setStatus("Demo contacts loaded.");
+      });
+      elements.settingsDemoBtn.addEventListener("click", () => {
+        seedDemoContacts(true);
+        syncFilter();
+        state.activeIndex = 0;
+        renderDeck();
+        showScreen("deck");
+        setStatus("Demo contacts loaded.");
+      });
+      elements.settingsClearAllBtn.addEventListener("click", () => {
+        state.contacts = [];
+        persistContacts();
+        syncFilter();
+        state.activeIndex = 0;
+        renderDeck();
+        showScreen("deck");
+        setStatus("All contacts cleared.");
+      });
+
+      elements.form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const contact = readForm();
+        if (!contact.name && !contact.company && !contact.email && !contact.phone) {
+          setStatus("Add at least a name, company, email, or phone before saving.", true);
+          return;
+        }
+
+        contact.createdAt = new Date().toISOString();
+        contact.id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
+
+        state.contacts.unshift(contact);
+        persistContacts();
+        syncFilter();
+        state.activeIndex = 0;
+        renderDeck();
+        clearForm(false);
+        showScreen("deck");
+        setStatus("Contact added to your roledex.");
+      });
+
+      elements.search.addEventListener("input", () => {
+        syncFilter();
+        state.activeIndex = 0;
+        renderDeck();
+      });
+
+      elements.prev.addEventListener("click", () => rotateDeck(-1));
+      elements.next.addEventListener("click", () => rotateDeck(1));
+
+      elements.navDeckBtn.addEventListener("click", () => showScreen("deck"));
+      elements.navPlusBtn.addEventListener("click", () => showScreen("scan"));
+      elements.navSettingsBtn.addEventListener("click", () => showScreen("settings"));
+
+      elements.deck.addEventListener("touchstart", handleDeckTouchStart, { passive: true });
+      elements.deck.addEventListener("touchend", handleDeckTouchEnd, { passive: true });
+      elements.deck.addEventListener("wheel", handleDeckWheel, { passive: true });
+    }
+
+    function showScreen(which) {
+      const scan = which === "scan";
+      const deck = which === "deck";
+      const settings = which === "settings";
+
+      elements.scanScreen.classList.toggle("active", scan);
+      elements.deckScreen.classList.toggle("active", deck);
+      elements.settingsScreen.classList.toggle("active", settings);
+
+      elements.navDeckBtn.classList.toggle("active", deck);
+      elements.navPlusBtn.classList.toggle("active", scan);
+      elements.navSettingsBtn.classList.toggle("active", settings);
+    }
+
+    async function handleImageSelect(event) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      state.imageFile = file;
+      state.imageDataUrl = await fileToDataURL(file);
+      elements.preview.src = state.imageDataUrl;
+      elements.preview.style.display = "block";
+      elements.uploadHint.style.display = "none";
+      setStatus("Image ready. Click \"Extract From Card\".");
+    }
+
+    async function extractFromImage() {
+      if (!state.imageFile) {
+        setStatus("Upload a business card image first.", true);
+        return;
+      }
+
+      if (!window.Tesseract) {
+        setStatus("OCR library failed to load. Fill in details manually.", true);
+        return;
+      }
+
+      elements.extractBtn.disabled = true;
+      elements.extractBtn.style.opacity = "0.7";
+      setStatus("Reading card text with AI OCR...");
+
+      try {
+        const result = await Tesseract.recognize(state.imageDataUrl, "eng", {
+          logger: (m) => {
+            if (m.status === "recognizing text") {
+              const pct = Math.round((m.progress || 0) * 100);
+              setStatus(`Reading card text with AI OCR... ${pct}%`);
+            }
+          }
+        });
+
+        const text = (result?.data?.text || "").trim();
+        state.ocrRawText = text;
+
+        if (!text) {
+          setStatus("No text detected. Try a clearer photo or enter details manually.", true);
+          return;
+        }
+
+        const parsed = parseCardText(text);
+        fillForm(parsed);
+        setStatus("Details extracted. Review and tap Add To Roledex.");
+      } catch (error) {
+        console.error(error);
+        setStatus("Could not extract text from this image. You can still fill the form manually.", true);
+      } finally {
+        elements.extractBtn.disabled = false;
+        elements.extractBtn.style.opacity = "1";
+      }
+    }
+
+    function parseCardText(rawText) {
+      const lines = rawText
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+      const email = findMatch(rawText, /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+      const website = findMatch(rawText, /(https?:\/\/)?([A-Z0-9.-]+\.[A-Z]{2,})(?:\/[\w\-./?%&=]*)?/i);
+      const phone = findMatch(rawText, /(?:\+?\d[\d().\s-]{7,}\d)/i);
+      const linkedin = findLine(lines, (line) => /linkedin\.com/i.test(line));
+      const address = findLine(lines, (line) => /\d+\s+.+(street|st\b|avenue|ave\b|road|rd\b|suite|ste\b|blvd|boulevard|drive|dr\b|lane|ln\b)/i.test(line));
+
+      const normalizedLines = lines
+        .filter((line) => !line.includes("@"))
+        .filter((line) => !/https?:\/\//i.test(line))
+        .filter((line) => !/\.com|\.io|\.net|\.org|\.co\b/i.test(line))
+        .filter((line) => !/\+?\d[\d().\s-]{7,}\d/.test(line));
+
+      const nameCandidate = normalizedLines.find((line) => looksLikePersonName(line)) || "";
+      const companyCandidate = normalizedLines.find((line) => looksLikeCompany(line, nameCandidate)) || "";
+      const titleCandidate = normalizedLines.find((line) => looksLikeTitle(line)) || "";
+
+      return {
+        name: cleanField(nameCandidate),
+        title: cleanField(titleCandidate),
+        company: cleanField(companyCandidate),
+        phone: cleanField(phone),
+        email: cleanField(email),
+        website: cleanWebsite(cleanField(website)),
+        address: cleanField(address),
+        notes: cleanField(linkedin && linkedin !== website ? linkedin : "")
+      };
+    }
+
+    function looksLikePersonName(line) {
+      if (line.length < 4 || line.length > 36) return false;
+      if (/\d/.test(line)) return false;
+      if (/\b(inc|llc|corp|company|group|studio|solutions|agency)\b/i.test(line)) return false;
+      const words = line.split(/\s+/).filter(Boolean);
+      if (words.length < 2 || words.length > 4) return false;
+      return words.every((w) => /^[A-Z][a-z'`-]{1,}$/.test(w));
+    }
+
+    function looksLikeCompany(line, currentName) {
+      if (!line || line === currentName) return false;
+      if (line.length < 2 || line.length > 40) return false;
+      if (/\d/.test(line)) return false;
+      if (/\b(phone|mobile|fax|email|www|linkedin|follow)\b/i.test(line)) return false;
+      return /\b(inc|llc|corp|company|co\.|group|studio|labs|agency|partners|consulting|digital|systems)\b/i.test(line)
+        || /^[A-Z][A-Za-z&'\- ]{2,}$/.test(line);
+    }
+
+    function looksLikeTitle(line) {
+      const lc = line.toLowerCase();
+      return probableTitles.some((term) => lc.includes(term));
+    }
+
+    function findLine(lines, predicate) {
+      const hit = lines.find(predicate);
+      return hit || "";
+    }
+
+    function findMatch(text, regex) {
+      const match = text.match(regex);
+      return match ? match[0] : "";
+    }
+
+    function cleanWebsite(site) {
+      if (!site) return "";
+      if (/^https?:\/\//i.test(site)) return site;
+      return site.startsWith("www.") || site.includes(".") ? `https://${site}` : site;
+    }
+
+    function cleanField(value) {
+      return (value || "")
+        .replace(/[|]+/g, "")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+    }
+
+    function fillForm(data) {
+      Object.entries(elements.fields).forEach(([key, input]) => {
+        input.value = data[key] || "";
+      });
+    }
+
+    function readForm() {
+      return Object.fromEntries(
+        Object.entries(elements.fields).map(([key, input]) => [key, input.value.trim()])
+      );
+    }
+
+    function clearForm(resetImage = true) {
+      Object.values(elements.fields).forEach((input) => (input.value = ""));
+      if (resetImage) {
+        elements.input.value = "";
+        elements.preview.src = "";
+        elements.preview.style.display = "none";
+        elements.uploadHint.style.display = "block";
+        state.imageDataUrl = "";
+        state.imageFile = null;
+      }
+      state.ocrRawText = "";
+      setStatus("Form cleared.");
+    }
+
+    function handleDeckTouchStart(event) {
+      if (!event.touches || !event.touches.length) return;
+      state.touchStartY = event.touches[0].clientY;
+    }
+
+    function handleDeckTouchEnd(event) {
+      if (state.touchStartY === null || !event.changedTouches || !event.changedTouches.length) return;
+      const endY = event.changedTouches[0].clientY;
+      const delta = endY - state.touchStartY;
+      state.touchStartY = null;
+      if (Math.abs(delta) < 30) return;
+      rotateDeck(delta < 0 ? 1 : -1);
+    }
+
+    function handleDeckWheel(event) {
+      if (Math.abs(event.deltaY) < 14) return;
+      rotateDeck(event.deltaY > 0 ? 1 : -1);
+    }
+
+    function rotateDeck(direction) {
+      const total = state.filtered.length;
+      if (!total || state.animating) return;
+
+      const fromIndex = state.activeIndex;
+      const toIndex = (fromIndex + direction + total) % total;
+      animateDeckFlip(fromIndex, toIndex, direction);
+    }
+
+    function syncFilter() {
+      const q = elements.search.value.trim().toLowerCase();
+      if (!q) {
+        state.filtered = [...state.contacts];
+      } else {
+        state.filtered = state.contacts.filter((contact) => {
+          return [contact.name, contact.title, contact.company, contact.email, contact.phone, contact.website, contact.address, contact.notes]
+            .filter(Boolean)
+            .some((value) => value.toLowerCase().includes(q));
+        });
+      }
+
+      if (state.activeIndex >= state.filtered.length) {
+        state.activeIndex = Math.max(0, state.filtered.length - 1);
+      }
+    }
+
+    function renderDeck() {
+      const total = state.filtered.length;
+      const hasCards = total > 0;
+
+      elements.cards.innerHTML = "";
+      elements.empty.style.display = hasCards ? "none" : "block";
+      elements.count.textContent = hasCards ? `${state.activeIndex + 1} / ${total}` : "0 / 0";
+      elements.summary.textContent = `${state.contacts.length} contact${state.contacts.length === 1 ? "" : "s"} saved`;
+      elements.prev.disabled = !hasCards;
+      elements.next.disabled = !hasCards;
+      elements.prev.style.opacity = hasCards ? "1" : "0.45";
+      elements.next.style.opacity = hasCards ? "1" : "0.45";
+
+      if (!hasCards) return;
+      const item = state.filtered[state.activeIndex];
+      const usedIndices = new Set([state.activeIndex]);
+      const maxDepth = Math.min(4, Math.floor((total - 1) / 2));
+      for (let depth = maxDepth; depth >= 1; depth -= 1) {
+        const topOffset = -depth;
+        const topIndex = (state.activeIndex + topOffset + total) % total;
+        if (!usedIndices.has(topIndex)) {
+          const topCard = buildCardNode(state.filtered[topIndex], false);
+          styleBackdropCard(topCard, topOffset);
+          elements.cards.appendChild(topCard);
+          usedIndices.add(topIndex);
+        }
+      }
+      for (let depth = 1; depth <= maxDepth; depth += 1) {
+        const bottomOffset = depth;
+        const bottomIndex = (state.activeIndex + bottomOffset) % total;
+        if (!usedIndices.has(bottomIndex)) {
+          const bottomCard = buildCardNode(state.filtered[bottomIndex], false);
+          styleBackdropCard(bottomCard, bottomOffset);
+          elements.cards.appendChild(bottomCard);
+          usedIndices.add(bottomIndex);
+        }
+      }
+
+      const card = buildCardNode(item, true);
+      card.classList.add("current");
+      card.style.zIndex = "5";
+      elements.cards.appendChild(card);
+    }
+
+    function styleBackdropCard(card, offset) {
+      const depth = Math.abs(offset);
+      const angleStep = 20;
+      const angle = offset * angleStep;
+      const z = 48 + (depth - 1) * 58;
+      const scale = Math.max(0.72, 0.93 - (depth - 1) * 0.07);
+      const opacity = Math.max(0.1, 0.34 - (depth - 1) * 0.08);
+      card.classList.add("backdrop");
+      card.style.transform = `rotateX(${angle}deg) translateZ(-${z}px) scale(${scale})`;
+      card.style.opacity = String(opacity);
+      card.style.zIndex = String(1 + (8 - depth));
+    }
+
+    function animateDeckFlip(fromIndex, toIndex, direction) {
+      const total = state.filtered.length;
+      const fromItem = state.filtered[fromIndex];
+      const toItem = state.filtered[toIndex];
+      if (!fromItem || !toItem) return;
+
+      state.animating = true;
+      elements.cards.innerHTML = "";
+
+      const usedIndices = new Set([fromIndex, toIndex]);
+      const topBackdropIndex = direction > 0
+        ? (fromIndex - 1 + total) % total
+        : (toIndex - 1 + total) % total;
+      const bottomBackdropIndex = direction > 0
+        ? (toIndex + 1) % total
+        : (fromIndex + 1) % total;
+      const farTopBackdropIndex = direction > 0
+        ? (fromIndex - 2 + total) % total
+        : (toIndex - 2 + total) % total;
+      const farBottomBackdropIndex = direction > 0
+        ? (toIndex + 2) % total
+        : (fromIndex + 2) % total;
+
+      if (!usedIndices.has(farTopBackdropIndex) && state.filtered[farTopBackdropIndex]) {
+        const farTopBackdrop = buildCardNode(state.filtered[farTopBackdropIndex], false);
+        farTopBackdrop.classList.add("backdrop", "backdrop-far-top", direction > 0 ? "backdrop-up" : "backdrop-down");
+        elements.cards.appendChild(farTopBackdrop);
+        usedIndices.add(farTopBackdropIndex);
+      }
+
+      if (!usedIndices.has(topBackdropIndex) && state.filtered[topBackdropIndex]) {
+        const topBackdrop = buildCardNode(state.filtered[topBackdropIndex], false);
+        topBackdrop.classList.add("backdrop", "backdrop-top", direction > 0 ? "backdrop-up" : "backdrop-down");
+        elements.cards.appendChild(topBackdrop);
+        usedIndices.add(topBackdropIndex);
+      }
+
+      if (!usedIndices.has(bottomBackdropIndex) && state.filtered[bottomBackdropIndex]) {
+        const bottomBackdrop = buildCardNode(state.filtered[bottomBackdropIndex], false);
+        bottomBackdrop.classList.add("backdrop", "backdrop-bottom", direction > 0 ? "backdrop-up" : "backdrop-down");
+        elements.cards.appendChild(bottomBackdrop);
+        usedIndices.add(bottomBackdropIndex);
+      }
+
+      if (!usedIndices.has(farBottomBackdropIndex) && state.filtered[farBottomBackdropIndex]) {
+        const farBottomBackdrop = buildCardNode(state.filtered[farBottomBackdropIndex], false);
+        farBottomBackdrop.classList.add("backdrop", "backdrop-far-bottom", direction > 0 ? "backdrop-up" : "backdrop-down");
+        elements.cards.appendChild(farBottomBackdrop);
+      }
+
+      const currentCard = buildCardNode(fromItem, false);
+      const nextCard = buildCardNode(toItem, false);
+      currentCard.classList.add("transition", direction > 0 ? "current-up" : "current-down");
+      nextCard.classList.add("transition", direction > 0 ? "next-up" : "next-down");
+      currentCard.style.zIndex = "5";
+      nextCard.style.zIndex = "6";
+
+      elements.cards.append(currentCard, nextCard);
+
+      window.setTimeout(() => {
+        state.activeIndex = toIndex;
+        state.animating = false;
+        renderDeck();
+      }, 580);
+    }
+
+    function buildCardNode(item, includeDelete) {
+      const card = document.createElement("article");
+      card.className = "rolocard";
+      card.innerHTML = cardMarkup(item, includeDelete);
+
+      if (includeDelete) {
+        const deleteBtn = card.querySelector("[data-delete]");
+        if (deleteBtn) {
+          deleteBtn.addEventListener("click", (event) => {
+            event.stopPropagation();
+            removeContact(item.id);
+          });
+        }
+      }
+
+      return card;
+    }
+
+    function cardMarkup(item, includeDelete) {
+      return `
+        <div class="row">
+          <span class="chip">${escapeHtml(item.company || "Contact")}</span>
+          ${includeDelete ? `<button class="btn btn-subtle" data-delete="${item.id}" style="padding:4px 8px;font-size:.72rem;border-radius:9px;">Delete</button>` : `<span style="width:50px;"></span>`}
+        </div>
+        <h3>${escapeHtml(item.name || "Unnamed")}</h3>
+        <p class="title">${escapeHtml(item.title || "No title added")}</p>
+        <div class="meta">
+          ${item.email ? `<div>${escapeHtml(item.email)}</div>` : ""}
+          ${item.phone ? `<div>${escapeHtml(item.phone)}</div>` : ""}
+          ${item.website ? `<div>${escapeHtml(item.website)}</div>` : ""}
+          ${item.address ? `<div>${escapeHtml(item.address)}</div>` : ""}
+          ${item.notes ? `<div class="notes">${escapeHtml(item.notes)}</div>` : ""}
+        </div>
+        <div class="footer">
+          <span>${formatDate(item.createdAt)}</span>
+          <span>${escapeHtml((item.name || "?").slice(0, 1).toUpperCase())}</span>
+        </div>
+      `;
+    }
+
+    function removeContact(id) {
+      const idx = state.contacts.findIndex((c) => c.id === id);
+      if (idx === -1) return;
+      state.contacts.splice(idx, 1);
+      persistContacts();
+      syncFilter();
+      state.activeIndex = Math.min(state.activeIndex, Math.max(0, state.filtered.length - 1));
+      renderDeck();
+      setStatus("Contact removed.");
+    }
+
+    function formatDate(iso) {
+      if (!iso) return "Saved";
+      const date = new Date(iso);
+      if (Number.isNaN(date.getTime())) return "Saved";
+      return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    }
+
+    function persistContacts() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.contacts));
+    }
+
+    function seedDemoContacts(force = false) {
+      if (state.contacts.length && !force) return;
+      const now = Date.now();
+      state.contacts = DEMO_CONTACT_TEMPLATES.map((template, index) => ({
+        ...template,
+        id: crypto.randomUUID ? crypto.randomUUID() : `${now}-${index}`,
+        createdAt: new Date(now - index * 86400000).toISOString()
+      }));
+      persistContacts();
+    }
+
+    function loadContacts() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function fileToDataURL(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function setStatus(text, isError = false) {
+      elements.status.textContent = text;
+      elements.status.classList.toggle("error", Boolean(isError));
+    }
+  </script>
+</body>
+</html>
