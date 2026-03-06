@@ -9,6 +9,7 @@ import { useContacts } from '../utils/ContactsContext';
 import { suggestCategory } from '../data/categories';
 import { Contact } from '../types/contact';
 import { useNavigation } from '@react-navigation/native';
+import { recognizeText, parseCardText } from '../utils/ocr';
 
 const emptyForm = { name: '', title: '', company: '', phone: '', email: '', website: '', address: '', notes: '', category: '' };
 
@@ -74,11 +75,38 @@ export default function ScanScreen() {
     setExtracting(true);
     setStatus('Reading card text with AI OCR...');
 
-    // OCR will be powered by ML Kit on device in production
-    // For now, simulate extraction delay
-    await new Promise((r) => setTimeout(r, 1500));
-    setStatus('OCR requires native device. Fill in details manually for now.');
-    setExtracting(false);
+    try {
+      const rawText = await recognizeText(imageUri);
+
+      if (!rawText) {
+        setStatus('No text detected. Try a clearer photo or enter details manually.');
+        return;
+      }
+
+      const parsed = parseCardText(rawText);
+      setForm({
+        name: parsed.name,
+        title: parsed.title,
+        company: parsed.company,
+        phone: parsed.phone,
+        email: parsed.email,
+        website: parsed.website,
+        address: parsed.address,
+        notes: parsed.notes,
+        category: suggestCategory(parsed.title, parsed.company),
+      });
+      setStatus('Details extracted. Review and tap Add To Rolo.');
+    } catch (err: any) {
+      const msg = err?.message || '';
+      if (msg.includes('not available') || msg.includes('native') || msg.includes('undefined')) {
+        setStatus('OCR requires a native build. Run: eas build --profile development');
+      } else {
+        setStatus('Could not extract text. Fill in details manually.');
+      }
+      console.warn('OCR error:', err);
+    } finally {
+      setExtracting(false);
+    }
   }
 
   function handleSubmit() {
