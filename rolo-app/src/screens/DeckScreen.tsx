@@ -1,7 +1,7 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
-  StyleSheet, Image, ScrollView, Animated,
+  StyleSheet, Image, ScrollView, Animated, Easing,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius } from '../utils/theme';
@@ -54,11 +54,46 @@ export default function DeckScreen() {
   }, [contacts]);
 
   const currentCard = filtered[deckIndex] || null;
+  const flipAnim = useRef(new Animated.Value(0)).current;
+  const [animating, setAnimating] = useState(false);
 
   const navigate = useCallback((dir: number) => {
-    if (!filtered.length) return;
-    setDeckIndex((prev) => (prev + dir + filtered.length) % filtered.length);
-  }, [filtered.length]);
+    if (!filtered.length || animating) return;
+    setAnimating(true);
+
+    Animated.sequence([
+      Animated.timing(flipAnim, {
+        toValue: dir > 0 ? 1 : -1,
+        duration: 200,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(flipAnim, {
+        toValue: 0,
+        duration: 0,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setDeckIndex((prev) => (prev + dir + filtered.length) % filtered.length);
+      setAnimating(false);
+    });
+  }, [filtered.length, animating, flipAnim]);
+
+  function getBackdropCards() {
+    const total = filtered.length;
+    if (total <= 1) return [];
+    const cards: { contact: Contact; offset: number }[] = [];
+    const maxDepth = Math.min(2, Math.floor((total - 1) / 2));
+    for (let d = 1; d <= maxDepth; d++) {
+      const topIdx = (deckIndex - d + total) % total;
+      cards.push({ contact: filtered[topIdx], offset: -d });
+    }
+    for (let d = 1; d <= maxDepth; d++) {
+      const bottomIdx = (deckIndex + d) % total;
+      cards.push({ contact: filtered[bottomIdx], offset: d });
+    }
+    return cards;
+  }
 
   const renderListItem = useCallback(({ item }: { item: Contact }) => {
     const initial = (item.name || item.company || '?').charAt(0).toUpperCase();
@@ -141,27 +176,83 @@ export default function DeckScreen() {
       {viewMode === 'deck' ? (
         <View style={s.deckArea}>
           {currentCard ? (
-            <TouchableOpacity style={s.rolocard} activeOpacity={0.85} onPress={() => setSelectedContact(currentCard)}>
-              <View style={s.cardRow}>
-                <View style={s.chip}><Text style={s.chipText} numberOfLines={1}>{currentCard.company || 'Contact'}</Text></View>
-                <View style={[s.cardTab, currentCard.cardColors ? { backgroundColor: currentCard.cardColors.accentHex } : null]}>
-                  <Text style={s.cardTabText}>{(currentCard.name || '?').charAt(0).toUpperCase()}</Text>
-                </View>
-              </View>
-              <Text style={s.cardName}>{currentCard.name || 'Unnamed'}</Text>
-              <Text style={s.cardTitle}>{currentCard.title || 'No title added'}</Text>
-              <View style={s.cardMeta}>
-                {currentCard.email ? <Text style={s.metaLine} numberOfLines={1}>{currentCard.email}</Text> : null}
-                {currentCard.phone ? <Text style={s.metaLine} numberOfLines={1}>{currentCard.phone}</Text> : null}
-                {currentCard.website ? <Text style={s.metaLine} numberOfLines={1}>{currentCard.website}</Text> : null}
-                {currentCard.address ? <Text style={s.metaLine} numberOfLines={1}>{currentCard.address}</Text> : null}
-                {currentCard.notes ? <Text style={s.notesLine} numberOfLines={2}>{currentCard.notes}</Text> : null}
-              </View>
-              <View style={s.cardFooter}>
-                <Text style={s.footerDate}>{formatDate(currentCard.createdAt)}</Text>
-                {currentCard.category ? <Text style={s.catTag}>{getCategoryLabel(currentCard.category)}</Text> : null}
-              </View>
-            </TouchableOpacity>
+            <View style={s.deckViewport}>
+              {/* Background cards (stacked behind) */}
+              {getBackdropCards().map(({ contact, offset }) => {
+                const depth = Math.abs(offset);
+                const yShift = offset * 34;
+                const scaleVal = 1 - depth * 0.04;
+                const opacityVal = depth === 1 ? 0.5 : 0.25;
+                const blurShadow = depth === 1 ? 0.12 : 0.06;
+                return (
+                  <View
+                    key={`bg-${contact.id}-${offset}`}
+                    style={[
+                      s.backdropCard,
+                      {
+                        transform: [{ translateY: yShift }, { scale: scaleVal }],
+                        opacity: opacityVal,
+                        zIndex: 4 - depth,
+                        backgroundColor: '#fff',
+                        borderWidth: 1,
+                        borderColor: '#edf1f6',
+                        borderRadius: 20,
+                        padding: 14,
+                        shadowColor: '#18212f',
+                        shadowOffset: { width: 0, height: 6 },
+                        shadowOpacity: blurShadow,
+                        shadowRadius: 18,
+                        elevation: 2,
+                      },
+                    ]}
+                    pointerEvents="none"
+                  >
+                    <View style={s.cardRow}>
+                      <View style={s.chip}><Text style={s.chipText} numberOfLines={1}>{contact.company || 'Contact'}</Text></View>
+                      <View style={[s.cardTab, contact.cardColors ? { backgroundColor: contact.cardColors.accentHex } : null]}>
+                        <Text style={s.cardTabText}>{(contact.name || '?').charAt(0).toUpperCase()}</Text>
+                      </View>
+                    </View>
+                    <Text style={[s.cardName, { opacity: 0 }]}>{contact.name}</Text>
+                  </View>
+                );
+              })}
+
+              {/* Main card */}
+              <Animated.View style={[
+                s.rolocard, s.mainCard,
+                {
+                  zIndex: 5,
+                  transform: [
+                    { translateY: flipAnim.interpolate({ inputRange: [-1, 0, 1], outputRange: [30, 0, -30] }) },
+                    { scale: flipAnim.interpolate({ inputRange: [-1, 0, 1], outputRange: [0.95, 1, 0.95] }) },
+                  ],
+                  opacity: flipAnim.interpolate({ inputRange: [-1, -0.5, 0, 0.5, 1], outputRange: [0, 0.5, 1, 0.5, 0] }),
+                },
+              ]}>
+                <TouchableOpacity activeOpacity={0.85} onPress={() => setSelectedContact(currentCard)} style={{ flex: 1, gap: 8 }}>
+                  <View style={s.cardRow}>
+                    <View style={s.chip}><Text style={s.chipText} numberOfLines={1}>{currentCard.company || 'Contact'}</Text></View>
+                    <View style={[s.cardTab, currentCard.cardColors ? { backgroundColor: currentCard.cardColors.accentHex } : null]}>
+                      <Text style={s.cardTabText}>{(currentCard.name || '?').charAt(0).toUpperCase()}</Text>
+                    </View>
+                  </View>
+                  <Text style={s.cardName}>{currentCard.name || 'Unnamed'}</Text>
+                  <Text style={s.cardTitle}>{currentCard.title || 'No title added'}</Text>
+                  <View style={s.cardMeta}>
+                    {currentCard.email ? <Text style={s.metaLine} numberOfLines={1}>{currentCard.email}</Text> : null}
+                    {currentCard.phone ? <Text style={s.metaLine} numberOfLines={1}>{currentCard.phone}</Text> : null}
+                    {currentCard.website ? <Text style={s.metaLine} numberOfLines={1}>{currentCard.website}</Text> : null}
+                    {currentCard.address ? <Text style={s.metaLine} numberOfLines={1}>{currentCard.address}</Text> : null}
+                    {currentCard.notes ? <Text style={s.notesLine} numberOfLines={2}>{currentCard.notes}</Text> : null}
+                  </View>
+                  <View style={s.cardFooter}>
+                    <Text style={s.footerDate}>{formatDate(currentCard.createdAt)}</Text>
+                    {currentCard.category ? <Text style={s.catTag}>{getCategoryLabel(currentCard.category)}</Text> : null}
+                  </View>
+                </TouchableOpacity>
+              </Animated.View>
+            </View>
           ) : (
             <View style={s.empty}>
               <Text style={s.emptyIcon}>📇</Text>
@@ -254,11 +345,14 @@ const s = StyleSheet.create({
   pillTextActive: { color: '#fff' },
   // Deck
   deckArea: { flex: 1, justifyContent: 'center' },
+  deckViewport: { height: 400, justifyContent: 'center', alignItems: 'center', position: 'relative' as const, overflow: 'visible' as const, marginTop: 8, marginBottom: 4 },
   rolocard: {
     backgroundColor: '#fff', borderWidth: 1, borderColor: '#edf1f6', borderRadius: 20, padding: 14,
     shadowColor: '#18212f', shadowOffset: { width: 0, height: 16 }, shadowOpacity: 0.18, shadowRadius: 28, elevation: 6,
-    gap: 8,
+    gap: 8, minHeight: 260,
   },
+  mainCard: { position: 'absolute' as const, left: 0, right: 0, zIndex: 5 },
+  backdropCard: { position: 'absolute' as const, left: 8, right: 8, minHeight: 260 },
   cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   chip: { backgroundColor: '#f0f0f2', borderWidth: 1, borderColor: '#d2d2d7', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, maxWidth: 140 },
   chipText: { fontSize: 11, fontWeight: '600', color: '#3a3a3c' },
