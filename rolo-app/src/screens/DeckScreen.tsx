@@ -196,15 +196,18 @@ export default function DeckScreen() {
     );
   }, []);
 
-  const outgoingSign = navDir > 0 ? -1 : 1;
-  const incomingSign = navDir > 0 ? 1 : -1;
+  const travelSign = navDir > 0 ? -1 : 1;
+  const incomingTravelSign = -travelSign;
+  const tiltSign = navDir > 0 ? 1 : -1;
+  const hingeOffset = 126;
   const outgoingCardStyle = {
     zIndex: 6,
     backfaceVisibility: 'hidden' as const,
     transform: [
       { perspective: 1400 },
-      { translateY: outgoingSign * 124 * flipProgress },
-      { rotateX: `${outgoingSign * 88 * flipProgress}deg` },
+      { translateY: -hingeOffset },
+      { rotateX: `${tiltSign * 86 * flipProgress}deg` },
+      { translateY: hingeOffset + (travelSign * 110 * flipProgress) },
       { scale: 1 - (0.08 * flipProgress) },
     ],
     opacity: 1 - (0.4 * flipProgress),
@@ -214,8 +217,9 @@ export default function DeckScreen() {
     backfaceVisibility: 'hidden' as const,
     transform: [
       { perspective: 1400 },
-      { translateY: incomingSign * 108 * (1 - flipProgress) },
-      { rotateX: `${incomingSign * 88 * (1 - flipProgress)}deg` },
+      { translateY: -hingeOffset },
+      { rotateX: `${-tiltSign * 86 * (1 - flipProgress)}deg` },
+      { translateY: hingeOffset + (incomingTravelSign * 94 * (1 - flipProgress)) },
       { scale: 0.9 + (0.1 * flipProgress) },
     ],
     opacity: 0.45 + (0.55 * flipProgress),
@@ -350,13 +354,13 @@ export default function DeckScreen() {
 
           {/* Deck Controls */}
           <View style={s.deckControls}>
-            <TouchableOpacity style={s.roundBtn} onPress={() => navigate(-1)}>
+            <TouchableOpacity style={s.roundBtn} onPress={() => navigate(1)}>
               <Text style={s.roundText}>↓</Text>
             </TouchableOpacity>
             <Text style={s.count}>
               {filtered.length ? `${deckIndex + 1} / ${filtered.length}` : '0 / 0'}
             </Text>
-            <TouchableOpacity style={s.roundBtn} onPress={() => navigate(1)}>
+            <TouchableOpacity style={s.roundBtn} onPress={() => navigate(-1)}>
               <Text style={s.roundText}>↑</Text>
             </TouchableOpacity>
           </View>
