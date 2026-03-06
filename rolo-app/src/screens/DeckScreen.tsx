@@ -94,16 +94,13 @@ export default function DeckScreen() {
     setAnimating(true);
     setFlipProgress(0);
 
-    const durationMs = 620;
-    const easeInOutCubic = (t: number) => (t < 0.5
-      ? 4 * t * t * t
-      : 1 - Math.pow(-2 * t + 2, 3) / 2);
+    const durationMs = 580;
     let startFrame: number | null = null;
 
     const step = (frameTime: number) => {
       if (startFrame === null) startFrame = frameTime;
       const linear = Math.min(1, (frameTime - startFrame) / durationMs);
-      setFlipProgress(easeInOutCubic(linear));
+      setFlipProgress(linear);
 
       if (linear < 1) {
         animationFrameRef.current = requestAnimationFrame(step);
@@ -196,29 +193,47 @@ export default function DeckScreen() {
     );
   }, []);
 
-  const outgoingSign = navDir > 0 ? -1 : 1;
-  const incomingSign = navDir > 0 ? 1 : -1;
+  // Two-phase animation: card exits first, then new card enters — no cube overlap
+  const EXIT_POINT = 0.42;
+  const exitProgress = Math.min(1, flipProgress / EXIT_POINT);
+  const enterProgress = exitProgress >= 1
+    ? Math.min(1, (flipProgress - EXIT_POINT) / (1 - EXIT_POINT))
+    : 0;
+
+  // Exit: aggressive ease-in (snaps away fast)
+  const easeInQuart = (t: number) => t * t * t * t;
+  // Enter: ease-out with a subtle overshoot (spring feel)
+  const easeOutBack = (t: number) => {
+    const c1 = 1.4;
+    const c3 = c1 + 1;
+    return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+  };
+
+  const exitT = easeInQuart(exitProgress);
+  const enterT = easeOutBack(enterProgress);
+
+  const outDir = navDir > 0 ? -1 : 1;
+  const inDir = navDir > 0 ? 1 : -1;
+
   const outgoingCardStyle = {
     zIndex: 6,
-    backfaceVisibility: 'hidden' as const,
     transform: [
       { perspective: 1400 },
-      { translateY: outgoingSign * 124 * flipProgress },
-      { rotateX: `${outgoingSign * 88 * flipProgress}deg` },
-      { scale: 1 - (0.08 * flipProgress) },
+      { translateY: outDir * 110 * exitT },
+      { rotateX: `${outDir * -80 * exitT}deg` },
+      { scale: 1 - 0.06 * exitT },
     ],
-    opacity: 1 - (0.4 * flipProgress),
+    opacity: 1 - exitT,
   };
   const incomingCardStyle = {
     zIndex: 5,
-    backfaceVisibility: 'hidden' as const,
     transform: [
       { perspective: 1400 },
-      { translateY: incomingSign * 108 * (1 - flipProgress) },
-      { rotateX: `${incomingSign * 88 * (1 - flipProgress)}deg` },
-      { scale: 0.9 + (0.1 * flipProgress) },
+      { translateY: inDir * 90 * (1 - enterT) },
+      { rotateX: `${inDir * -70 * (1 - enterT)}deg` },
+      { scale: 0.94 + 0.06 * enterT },
     ],
-    opacity: 0.45 + (0.55 * flipProgress),
+    opacity: enterT,
   };
 
   return (

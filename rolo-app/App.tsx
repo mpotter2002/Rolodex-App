@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
+import { View, StyleSheet, Platform, useWindowDimensions } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -26,6 +26,7 @@ function AppContent() {
 
 export default function App() {
   const isWeb = Platform.OS === 'web';
+  const { width: winW, height: winH } = useWindowDimensions();
 
   const content = (
     <SafeAreaProvider>
@@ -39,9 +40,13 @@ export default function App() {
   );
 
   if (isWeb) {
+    // Fit snugly in the visible viewport — cap at phone proportions but never overflow
+    const frameH = Math.min(880, winH - 16);
+    const frameW = Math.min(420, winW - 16);
+
     return (
       <View style={styles.webOuter}>
-        <View style={styles.webFrame}>
+        <View style={[styles.webFrame, { width: frameW, height: frameH }]}>
           {content}
         </View>
       </View>
@@ -60,9 +65,6 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   webFrame: {
-    width: 420,
-    height: 880,
-    maxHeight: '100%',
     backgroundColor: '#ffffff',
     borderRadius: 34,
     borderWidth: 1,
