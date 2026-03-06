@@ -198,7 +198,7 @@ export default function ContactDetailSheet({ contact, onClose }: Props) {
 
 const s = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(21,24,33,0.45)' },
-  sheet: { backgroundColor: colors.panel, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '88%', paddingBottom: 36 },
+  sheet: { backgroundColor: colors.panel, borderTopLeftRadius: 32, borderTopRightRadius: 32, maxHeight: '88%', paddingBottom: 36, overflow: 'hidden' },
   handle: { width: 36, height: 4, backgroundColor: '#d1d5db', borderRadius: 999, alignSelf: 'center', marginTop: 10 },
   detailHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 18, paddingTop: 10, paddingBottom: 4 },
   closeBtn: { width: 30, height: 30, borderRadius: 999, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },

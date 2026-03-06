@@ -1,4 +1,11 @@
-import TextRecognition from '@react-native-ml-kit/text-recognition';
+// Conditionally load ML Kit — not available in Expo Go (requires a custom dev build).
+// The app will still load; OCR will gracefully fail with a clear message.
+let TextRecognition: { recognize: (uri: string) => Promise<{ text: string }> } | null = null;
+try {
+  TextRecognition = require('@react-native-ml-kit/text-recognition').default;
+} catch {
+  // Running in Expo Go or an environment without the native ML Kit module.
+}
 
 interface ParsedCard {
   name: string;
@@ -18,6 +25,9 @@ const PROBABLE_TITLES = [
 ];
 
 export async function recognizeText(imageUri: string): Promise<string> {
+  if (!TextRecognition) {
+    throw new Error('OCR not available in Expo Go. Use a development build for ML Kit OCR.');
+  }
   const result = await TextRecognition.recognize(imageUri);
   return result.text || '';
 }

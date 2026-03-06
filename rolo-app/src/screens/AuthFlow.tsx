@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, Image, StyleSheet, Dimensions, ScrollView,
 } from 'react-native';
+import { AntDesign } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../utils/theme';
 import { setOnboarded } from '../utils/storage';
@@ -124,8 +125,14 @@ export default function AuthFlow({ onComplete }: { onComplete: () => void }) {
           </TouchableOpacity>
           <TouchableOpacity style={s.btnBlack} onPress={dismissAuth}><Text style={s.btnBlackText}>Sign In</Text></TouchableOpacity>
           <View style={s.divider}><View style={s.dividerLine} /><Text style={s.dividerText}>or continue with</Text><View style={s.dividerLine} /></View>
-          <TouchableOpacity style={s.socialBtn} onPress={dismissAuth}><Text style={s.socialText}> Sign in with Apple</Text></TouchableOpacity>
-          <TouchableOpacity style={s.socialBtn} onPress={dismissAuth}><Text style={s.socialText}>🔵 Sign in with Google</Text></TouchableOpacity>
+          <TouchableOpacity style={s.socialBtn} onPress={dismissAuth}>
+            <AntDesign name="apple1" size={17} color="#1d1d1f" style={{ marginRight: 8 }} />
+            <Text style={s.socialText}>Sign in with Apple</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.socialBtn} onPress={dismissAuth}>
+            <AntDesign name="google" size={16} color="#DB4437" style={{ marginRight: 8 }} />
+            <Text style={s.socialText}>Sign in with Google</Text>
+          </TouchableOpacity>
         </View>
         <View style={s.switchRow}>
           <Text style={s.switchText}>Don't have an account? </Text>
@@ -150,8 +157,14 @@ export default function AuthFlow({ onComplete }: { onComplete: () => void }) {
           <View style={s.fieldWrap}><Text style={s.fieldLabel}>PASSWORD</Text><TextInput style={s.input} placeholder="Min. 8 characters" placeholderTextColor="#b0b0b5" secureTextEntry /></View>
           <TouchableOpacity style={s.btnBlack} onPress={dismissAuth}><Text style={s.btnBlackText}>Create Account</Text></TouchableOpacity>
           <View style={s.divider}><View style={s.dividerLine} /><Text style={s.dividerText}>or sign up with</Text><View style={s.dividerLine} /></View>
-          <TouchableOpacity style={s.socialBtn} onPress={dismissAuth}><Text style={s.socialText}> Sign up with Apple</Text></TouchableOpacity>
-          <TouchableOpacity style={s.socialBtn} onPress={dismissAuth}><Text style={s.socialText}>🔵 Sign up with Google</Text></TouchableOpacity>
+          <TouchableOpacity style={s.socialBtn} onPress={dismissAuth}>
+            <AntDesign name="apple1" size={17} color="#1d1d1f" style={{ marginRight: 8 }} />
+            <Text style={s.socialText}>Sign up with Apple</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.socialBtn} onPress={dismissAuth}>
+            <AntDesign name="google" size={16} color="#DB4437" style={{ marginRight: 8 }} />
+            <Text style={s.socialText}>Sign up with Google</Text>
+          </TouchableOpacity>
         </View>
         <View style={s.switchRow}>
           <Text style={s.switchText}>Already have an account? </Text>
@@ -208,7 +221,7 @@ const s = StyleSheet.create({
   divider: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   dividerLine: { flex: 1, height: 1, backgroundColor: colors.line },
   dividerText: { color: colors.muted, fontSize: 12, fontWeight: '600' },
-  socialBtn: { borderWidth: 1.5, borderColor: colors.line, borderRadius: 14, paddingVertical: 13, alignItems: 'center' },
+  socialBtn: { borderWidth: 1.5, borderColor: colors.line, borderRadius: 14, paddingVertical: 13, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
   socialText: { color: colors.ink, fontSize: 14.5, fontWeight: '600' },
   switchRow: { flexDirection: 'row', justifyContent: 'center', padding: 20 },
   switchText: { color: colors.muted, fontSize: 13.5 },
