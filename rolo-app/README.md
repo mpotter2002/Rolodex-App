@@ -77,3 +77,13 @@ eas build --platform all --profile production
 - [ ] Set up RevenueCat for in-app subscriptions
 - [ ] Push notifications via `expo-notifications`
 - [ ] TestFlight beta → App Store submission
+
+## Tomorrow Plan — Clerk + Stripe Integration (planning only)
+
+- [ ] Confirm Clerk and Stripe plugin setup in Expo project config and local env keys.
+- [ ] Add Clerk auth shell in app bootstrap (`signed in` / `signed out` routes) with protected app tabs.
+- [ ] Define subscription source of truth (`free` vs `pro`) and where entitlement is stored/read.
+- [ ] Replace mock premium unlock with real Stripe-backed purchase flow from paywall.
+- [ ] Add account/billing entry in Settings (manage subscription, restore purchases, sign out).
+- [ ] Add post-purchase entitlement refresh on app start and after checkout return.
+- [ ] Add QA checklist: new user sign-up, sign-in/out, upgrade, restore, and downgrade/cancel behavior.
