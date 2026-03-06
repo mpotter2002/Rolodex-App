@@ -1,0 +1,303 @@
+import React, { useState, useMemo, useCallback } from 'react';
+import {
+  View, Text, TextInput, TouchableOpacity, FlatList,
+  StyleSheet, Image, ScrollView, Animated,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors, radius } from '../utils/theme';
+import { useContacts } from '../utils/ContactsContext';
+import { CATEGORIES, getCategoryLabel } from '../data/categories';
+import { Contact } from '../types/contact';
+import ContactDetailSheet from '../components/ContactDetailSheet';
+
+type SortKey = 'newest' | 'oldest' | 'name-az' | 'name-za' | 'company-az';
+
+export default function DeckScreen() {
+  const insets = useSafeAreaInsets();
+  const { contacts } = useContacts();
+  const [search, setSearch] = useState('');
+  const [activeCategory, setActiveCategory] = useState('');
+  const [viewMode, setViewMode] = useState<'deck' | 'list'>('deck');
+  const [sortKey, setSortKey] = useState<SortKey>('newest');
+  const [deckIndex, setDeckIndex] = useState(0);
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return contacts.filter((c) => {
+      if (activeCategory && c.category !== activeCategory) return false;
+      if (q) {
+        return [c.name, c.title, c.company, c.email, c.phone, c.website, c.address, c.notes]
+          .filter(Boolean)
+          .some((v) => v.toLowerCase().includes(q));
+      }
+      return true;
+    });
+  }, [contacts, search, activeCategory]);
+
+  const sorted = useMemo(() => {
+    if (viewMode !== 'list') return filtered;
+    const s = [...filtered];
+    switch (sortKey) {
+      case 'oldest': s.sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()); break;
+      case 'name-az': s.sort((a, b) => (a.name || '').localeCompare(b.name || '')); break;
+      case 'name-za': s.sort((a, b) => (b.name || '').localeCompare(a.name || '')); break;
+      case 'company-az': s.sort((a, b) => (a.company || '').localeCompare(b.company || '')); break;
+      default: s.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()); break;
+    }
+    return s;
+  }, [filtered, viewMode, sortKey]);
+
+  const usedCategories = useMemo(() => {
+    const used = new Set(contacts.map((c) => c.category).filter(Boolean));
+    return CATEGORIES.filter((c) => used.has(c.key));
+  }, [contacts]);
+
+  const currentCard = filtered[deckIndex] || null;
+
+  const navigate = useCallback((dir: number) => {
+    if (!filtered.length) return;
+    setDeckIndex((prev) => (prev + dir + filtered.length) % filtered.length);
+  }, [filtered.length]);
+
+  const renderListItem = useCallback(({ item }: { item: Contact }) => {
+    const initial = (item.name || item.company || '?').charAt(0).toUpperCase();
+    const subtitle = [item.title, item.company].filter(Boolean).join(' · ');
+    const catLabel = getCategoryLabel(item.category);
+    return (
+      <TouchableOpacity style={s.listCard} activeOpacity={0.7} onPress={() => setSelectedContact(item)}>
+        <View style={[s.listAvatar, item.cardColors ? { backgroundColor: item.cardColors.accentHex } : null]}>
+          <Text style={s.listAvatarText}>{initial}</Text>
+        </View>
+        <View style={s.listInfo}>
+          <Text style={s.listName} numberOfLines={1}>{item.name || 'Unnamed'}</Text>
+          {subtitle ? <Text style={s.listSubtitle} numberOfLines={1}>{subtitle}</Text> : null}
+          {item.phone || item.email ? (
+            <Text style={s.listDetail} numberOfLines={1}>{item.phone || item.email}</Text>
+          ) : null}
+        </View>
+        <View style={s.listRight}>
+          {catLabel ? <Text style={s.catTag}>{catLabel}</Text> : null}
+          <Text style={s.chevron}>›</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  }, []);
+
+  return (
+    <View style={[s.container, { paddingTop: insets.top + 8 }]}>
+      {/* Header */}
+      <View style={s.header}>
+        <Image source={require('../../assets/rolo-logo.png')} style={s.logo} />
+        <Text style={s.wordmark}>Rolo</Text>
+      </View>
+      <Text style={s.summary}>{contacts.length} contact{contacts.length === 1 ? '' : 's'} saved</Text>
+
+      {/* Search */}
+      <TextInput
+        style={s.search}
+        placeholder="Search name, company, email..."
+        placeholderTextColor={colors.muted}
+        value={search}
+        onChangeText={setSearch}
+      />
+
+      {/* View Toggle */}
+      <View style={s.toggle}>
+        <TouchableOpacity
+          style={[s.toggleBtn, viewMode === 'deck' && s.toggleActive]}
+          onPress={() => setViewMode('deck')}
+        >
+          <Text style={[s.toggleText, viewMode === 'deck' && s.toggleTextActive]}>📇 Deck</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[s.toggleBtn, viewMode === 'list' && s.toggleActive]}
+          onPress={() => setViewMode('list')}
+        >
+          <Text style={[s.toggleText, viewMode === 'list' && s.toggleTextActive]}>☰ List</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Category Filter */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filterBar} contentContainerStyle={s.filterContent}>
+        <TouchableOpacity
+          style={[s.pill, !activeCategory && s.pillActive]}
+          onPress={() => { setActiveCategory(''); setDeckIndex(0); }}
+        >
+          <Text style={[s.pillText, !activeCategory && s.pillTextActive]}>All</Text>
+        </TouchableOpacity>
+        {usedCategories.map((cat) => (
+          <TouchableOpacity
+            key={cat.key}
+            style={[s.pill, activeCategory === cat.key && s.pillActive]}
+            onPress={() => { setActiveCategory(cat.key); setDeckIndex(0); }}
+          >
+            <Text style={[s.pillText, activeCategory === cat.key && s.pillTextActive]}>{cat.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      {/* Deck or List */}
+      {viewMode === 'deck' ? (
+        <View style={s.deckArea}>
+          {currentCard ? (
+            <TouchableOpacity style={s.rolocard} activeOpacity={0.85} onPress={() => setSelectedContact(currentCard)}>
+              <View style={s.cardRow}>
+                <View style={s.chip}><Text style={s.chipText} numberOfLines={1}>{currentCard.company || 'Contact'}</Text></View>
+                <View style={[s.cardTab, currentCard.cardColors ? { backgroundColor: currentCard.cardColors.accentHex } : null]}>
+                  <Text style={s.cardTabText}>{(currentCard.name || '?').charAt(0).toUpperCase()}</Text>
+                </View>
+              </View>
+              <Text style={s.cardName}>{currentCard.name || 'Unnamed'}</Text>
+              <Text style={s.cardTitle}>{currentCard.title || 'No title added'}</Text>
+              <View style={s.cardMeta}>
+                {currentCard.email ? <Text style={s.metaLine} numberOfLines={1}>{currentCard.email}</Text> : null}
+                {currentCard.phone ? <Text style={s.metaLine} numberOfLines={1}>{currentCard.phone}</Text> : null}
+                {currentCard.website ? <Text style={s.metaLine} numberOfLines={1}>{currentCard.website}</Text> : null}
+                {currentCard.address ? <Text style={s.metaLine} numberOfLines={1}>{currentCard.address}</Text> : null}
+                {currentCard.notes ? <Text style={s.notesLine} numberOfLines={2}>{currentCard.notes}</Text> : null}
+              </View>
+              <View style={s.cardFooter}>
+                <Text style={s.footerDate}>{formatDate(currentCard.createdAt)}</Text>
+                {currentCard.category ? <Text style={s.catTag}>{getCategoryLabel(currentCard.category)}</Text> : null}
+              </View>
+            </TouchableOpacity>
+          ) : (
+            <View style={s.empty}>
+              <Text style={s.emptyIcon}>📇</Text>
+              <Text style={s.emptyTitle}>No contacts yet</Text>
+              <Text style={s.emptyDesc}>Scan a business card to add your first contact.</Text>
+            </View>
+          )}
+
+          {/* Deck Controls */}
+          <View style={s.deckControls}>
+            <TouchableOpacity style={s.roundBtn} onPress={() => navigate(-1)}>
+              <Text style={s.roundText}>↓</Text>
+            </TouchableOpacity>
+            <Text style={s.count}>
+              {filtered.length ? `${deckIndex + 1} / ${filtered.length}` : '0 / 0'}
+            </Text>
+            <TouchableOpacity style={s.roundBtn} onPress={() => navigate(1)}>
+              <Text style={s.roundText}>↑</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={s.swipeHint}>Swipe down for next card, swipe up for previous</Text>
+        </View>
+      ) : (
+        <View style={s.listArea}>
+          <View style={s.sortBar}>
+            <Text style={s.sortLabel}>Sort by</Text>
+            <TouchableOpacity
+              style={s.sortSelect}
+              onPress={() => {
+                const keys: SortKey[] = ['newest', 'oldest', 'name-az', 'name-za', 'company-az'];
+                const idx = keys.indexOf(sortKey);
+                setSortKey(keys[(idx + 1) % keys.length]);
+              }}
+            >
+              <Text style={s.sortText}>
+                {{ newest: 'Date (Newest)', oldest: 'Date (Oldest)', 'name-az': 'Name (A–Z)', 'name-za': 'Name (Z–A)', 'company-az': 'Company (A–Z)' }[sortKey]}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <FlatList
+            data={sorted}
+            keyExtractor={(item) => item.id}
+            renderItem={renderListItem}
+            contentContainerStyle={{ paddingBottom: 100 }}
+            showsVerticalScrollIndicator={false}
+          />
+        </View>
+      )}
+
+      {/* Contact Detail Sheet */}
+      {selectedContact && (
+        <ContactDetailSheet
+          contact={selectedContact}
+          onClose={() => setSelectedContact(null)}
+        />
+      )}
+    </View>
+  );
+}
+
+function formatDate(iso: string): string {
+  if (!iso) return 'Saved';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return 'Saved';
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.panel, paddingHorizontal: 14 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
+  logo: { width: 32, height: 32, resizeMode: 'contain' },
+  wordmark: { fontSize: 22, fontWeight: '800', letterSpacing: -0.5, color: colors.ink },
+  summary: { fontSize: 13.5, color: colors.muted, marginTop: 2, marginBottom: 6 },
+  search: {
+    borderWidth: 1, borderColor: colors.line, borderRadius: 12, paddingHorizontal: 12,
+    paddingVertical: 10, fontSize: 14.5, color: colors.ink, backgroundColor: '#fff', marginBottom: 8,
+  },
+  toggle: {
+    flexDirection: 'row', backgroundColor: colors.bg, borderRadius: 12, padding: 3, gap: 2, marginBottom: 8,
+  },
+  toggleBtn: { flex: 1, paddingVertical: 7, borderRadius: 10, alignItems: 'center' },
+  toggleActive: { backgroundColor: colors.panel, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
+  toggleText: { fontSize: 12.5, fontWeight: '700', color: colors.muted },
+  toggleTextActive: { color: colors.ink },
+  filterBar: { flexGrow: 0, marginBottom: 8 },
+  filterContent: { gap: 6, paddingRight: 16 },
+  pill: { paddingHorizontal: 18, paddingVertical: 8, borderRadius: 999, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.panel },
+  pillActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  pillText: { fontSize: 13.5, fontWeight: '600', color: colors.muted },
+  pillTextActive: { color: '#fff' },
+  // Deck
+  deckArea: { flex: 1, justifyContent: 'center' },
+  rolocard: {
+    backgroundColor: '#fff', borderWidth: 1, borderColor: '#edf1f6', borderRadius: 20, padding: 14,
+    shadowColor: '#18212f', shadowOffset: { width: 0, height: 16 }, shadowOpacity: 0.18, shadowRadius: 28, elevation: 6,
+    gap: 8,
+  },
+  cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  chip: { backgroundColor: '#f0f0f2', borderWidth: 1, borderColor: '#d2d2d7', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, maxWidth: 140 },
+  chipText: { fontSize: 11, fontWeight: '600', color: '#3a3a3c' },
+  cardTab: { backgroundColor: colors.accent, width: 28, height: 22, borderRadius: 5, alignItems: 'center', justifyContent: 'center' },
+  cardTabText: { color: '#fff', fontSize: 10.5, fontWeight: '800', textTransform: 'uppercase' },
+  cardName: { fontSize: 19.5, fontWeight: '800', letterSpacing: -0.3, color: colors.ink },
+  cardTitle: { fontSize: 15, color: colors.muted, marginTop: -2 },
+  cardMeta: { gap: 6, marginTop: 4 },
+  metaLine: { fontSize: 14.5, color: '#1f2a39' },
+  notesLine: { fontSize: 13.5, color: '#4f5b6a', lineHeight: 18 },
+  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
+  footerDate: { fontSize: 12.5, color: '#5d6a7d' },
+  catTag: { fontSize: 9.5, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase', backgroundColor: colors.accentSoft, color: colors.accent, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2, overflow: 'hidden' },
+  deckControls: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10, marginTop: 14 },
+  roundBtn: { width: 40, height: 40, borderRadius: 999, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' },
+  roundText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  count: { minWidth: 84, textAlign: 'center', fontWeight: '700', color: '#485568', fontSize: 13.5 },
+  swipeHint: { textAlign: 'center', color: '#5e6a7c', fontSize: 12.5, marginTop: 4, marginBottom: 80 },
+  empty: { alignItems: 'center', paddingVertical: 40, gap: 8 },
+  emptyIcon: { fontSize: 48 },
+  emptyTitle: { fontSize: 17, fontWeight: '800', color: colors.ink },
+  emptyDesc: { fontSize: 13.5, color: colors.muted, textAlign: 'center', lineHeight: 20 },
+  // List
+  listArea: { flex: 1 },
+  sortBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
+  sortLabel: { fontSize: 12, color: colors.muted, fontWeight: '600' },
+  sortSelect: { borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+  sortText: { fontSize: 12, fontWeight: '600', color: colors.muted },
+  listCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.panel,
+    borderWidth: 1, borderColor: '#e7edf5', borderRadius: 16, padding: 12, marginBottom: 8,
+    shadowColor: '#1e2a3b', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 1,
+  },
+  listAvatar: { width: 44, height: 44, borderRadius: 999, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
+  listAvatarText: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  listInfo: { flex: 1 },
+  listName: { fontSize: 15, fontWeight: '700', color: colors.ink },
+  listSubtitle: { fontSize: 12.5, color: colors.muted, marginTop: 1 },
+  listDetail: { fontSize: 12, color: colors.muted, marginTop: 2, opacity: 0.75 },
+  listRight: { alignItems: 'flex-end', gap: 4 },
+  chevron: { fontSize: 16, color: colors.line },
+});

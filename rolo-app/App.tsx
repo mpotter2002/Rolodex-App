@@ -1,20 +1,37 @@
+import React, { useState, useEffect } from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { ContactsProvider } from './src/utils/ContactsContext';
+import AppNavigator from './src/navigation/AppNavigator';
+import AuthFlow from './src/screens/AuthFlow';
+import { isOnboarded } from './src/utils/storage';
 
 export default function App() {
+  const [authed, setAuthed] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    isOnboarded().then((done) => {
+      if (done) setAuthed(true);
+      setLoading(false);
+    });
+  }, []);
+
+  if (loading) return null;
+
   return (
-    <View style={styles.container}>
-      <Text>Open up App.tsx to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <SafeAreaProvider>
+      <ContactsProvider>
+        <NavigationContainer>
+          <StatusBar style="dark" />
+          {authed ? (
+            <AppNavigator />
+          ) : (
+            <AuthFlow onComplete={() => setAuthed(true)} />
+          )}
+        </NavigationContainer>
+      </ContactsProvider>
+    </SafeAreaProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
