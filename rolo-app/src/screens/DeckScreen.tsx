@@ -203,9 +203,8 @@ export default function DeckScreen() {
     backfaceVisibility: 'hidden' as const,
     transform: [
       { perspective: 1400 },
-      { translateY: outgoingSign * 40 * flipProgress },
-      { translateX: outgoingSign * 120 * flipProgress },
-      { rotateY: `${outgoingSign * 88 * flipProgress}deg` },
+      { translateY: outgoingSign * 124 * flipProgress },
+      { rotateX: `${outgoingSign * 88 * flipProgress}deg` },
       { scale: 1 - (0.08 * flipProgress) },
     ],
     opacity: 1 - (0.4 * flipProgress),
@@ -215,9 +214,8 @@ export default function DeckScreen() {
     backfaceVisibility: 'hidden' as const,
     transform: [
       { perspective: 1400 },
-      { translateY: incomingSign * 30 * (1 - flipProgress) },
-      { translateX: incomingSign * 110 * (1 - flipProgress) },
-      { rotateY: `${incomingSign * 88 * (1 - flipProgress)}deg` },
+      { translateY: incomingSign * 108 * (1 - flipProgress) },
+      { rotateX: `${incomingSign * 88 * (1 - flipProgress)}deg` },
       { scale: 0.9 + (0.1 * flipProgress) },
     ],
     opacity: 0.45 + (0.55 * flipProgress),
