@@ -1817,6 +1817,715 @@
       font-weight: 500;
     }
 
+    /* ── Paywall / Subscription Overlay ── */
+    .paywall-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 210;
+      display: flex;
+      flex-direction: column;
+      pointer-events: none;
+      overflow: hidden;
+      border-radius: 34px;
+    }
+
+    .paywall-overlay.open { pointer-events: all; }
+
+    .paywall-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(21, 24, 33, 0);
+      transition: background 0.35s ease;
+      border-radius: 34px;
+    }
+
+    .paywall-overlay.open .paywall-backdrop { background: rgba(21, 24, 33, 0.52); }
+
+    .paywall-sheet {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      top: 0;
+      background: var(--panel);
+      border-radius: 34px;
+      display: flex;
+      flex-direction: column;
+      transform: translateY(100%);
+      transition: transform 0.42s cubic-bezier(0.16, 1, 0.3, 1);
+      overflow-y: auto;
+    }
+
+    .paywall-overlay.open .paywall-sheet { transform: translateY(0); }
+
+    .paywall-close {
+      position: absolute;
+      top: max(16px, env(safe-area-inset-top));
+      right: 16px;
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      background: var(--bg);
+      border: none;
+      font-size: 0.9rem;
+      color: var(--muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2;
+    }
+
+    .paywall-hero {
+      text-align: center;
+      padding: max(48px, env(safe-area-inset-top) + 24px) 24px 20px;
+    }
+
+    .paywall-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: linear-gradient(135deg, #1d1d1f 0%, #3a3a3c 100%);
+      color: #fff;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 6px 14px;
+      border-radius: 999px;
+      margin-bottom: 16px;
+    }
+
+    .paywall-badge-icon { font-size: 0.9rem; }
+
+    .paywall-title {
+      font-size: 1.65rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: var(--ink);
+      margin-bottom: 8px;
+      line-height: 1.15;
+    }
+
+    .paywall-subtitle {
+      font-size: 0.88rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .paywall-features {
+      padding: 0 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      margin-bottom: 20px;
+    }
+
+    .paywall-feature {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 11px 0;
+      border-bottom: 1px solid var(--bg);
+    }
+
+    .paywall-feature:last-child { border-bottom: none; }
+
+    .paywall-feature-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.05rem;
+      flex-shrink: 0;
+    }
+
+    .paywall-feature-text {
+      flex: 1;
+    }
+
+    .paywall-feature-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--ink);
+      letter-spacing: -0.01em;
+    }
+
+    .paywall-feature-desc {
+      font-size: 0.76rem;
+      color: var(--muted);
+      margin-top: 1px;
+    }
+
+    .paywall-plans {
+      padding: 0 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .paywall-plan {
+      border: 2px solid var(--line);
+      border-radius: 16px;
+      padding: 14px 16px;
+      cursor: pointer;
+      transition: border-color 0.18s, background 0.18s, box-shadow 0.18s;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: relative;
+    }
+
+    .paywall-plan:hover { border-color: var(--accent); }
+
+    .paywall-plan.selected {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+      box-shadow: 0 0 0 1px var(--accent);
+    }
+
+    .paywall-plan-radio {
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      border: 2px solid var(--line);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color 0.15s, background 0.15s;
+    }
+
+    .paywall-plan.selected .paywall-plan-radio {
+      border-color: var(--accent);
+      background: var(--accent);
+    }
+
+    .paywall-plan.selected .paywall-plan-radio::after {
+      content: "✓";
+      color: #fff;
+      font-size: 0.72rem;
+      font-weight: 800;
+    }
+
+    .paywall-plan-info { flex: 1; }
+
+    .paywall-plan-name {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: var(--ink);
+      letter-spacing: -0.01em;
+    }
+
+    .paywall-plan-detail {
+      font-size: 0.76rem;
+      color: var(--muted);
+      margin-top: 1px;
+    }
+
+    .paywall-plan-price {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: var(--ink);
+      text-align: right;
+      letter-spacing: -0.02em;
+    }
+
+    .paywall-plan-period {
+      font-size: 0.68rem;
+      font-weight: 500;
+      color: var(--muted);
+      text-align: right;
+    }
+
+    .paywall-plan-save {
+      position: absolute;
+      top: -9px;
+      right: 14px;
+      background: #34c759;
+      color: #fff;
+      font-size: 0.6rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border-radius: 999px;
+    }
+
+    .paywall-cta {
+      margin: 0 20px 12px;
+      padding: 15px;
+      border-radius: 14px;
+      border: none;
+      background: var(--ink);
+      color: #fff;
+      font-family: "DM Sans", sans-serif;
+      font-size: 0.98rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      box-shadow: 0 8px 20px -10px rgba(0,0,0,0.45);
+    }
+
+    .paywall-cta:hover { opacity: 0.85; }
+
+    .paywall-footer {
+      text-align: center;
+      padding: 0 24px 8px;
+      margin-bottom: max(20px, env(safe-area-inset-bottom));
+    }
+
+    .paywall-restore {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-family: "DM Sans", sans-serif;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    .paywall-terms {
+      font-size: 0.68rem;
+      color: var(--muted);
+      margin-top: 6px;
+      line-height: 1.5;
+      opacity: 0.7;
+    }
+
+    /* Settings Pro banner */
+    .pro-banner {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: linear-gradient(135deg, #1d1d1f 0%, #2c2c2e 100%);
+      border-radius: 16px;
+      padding: 14px 16px;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    .pro-banner:hover { opacity: 0.9; }
+
+    .pro-banner-icon {
+      font-size: 1.4rem;
+      line-height: 1;
+    }
+
+    .pro-banner-text {
+      flex: 1;
+    }
+
+    .pro-banner-title {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -0.01em;
+    }
+
+    .pro-banner-desc {
+      font-size: 0.76rem;
+      color: rgba(255,255,255,0.6);
+      margin-top: 1px;
+    }
+
+    .pro-banner-arrow {
+      color: rgba(255,255,255,0.4);
+      font-size: 1.1rem;
+    }
+
+    /* ── Onboarding Overlay ── */
+    .onboarding-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 205;
+      display: flex;
+      flex-direction: column;
+      background: var(--panel);
+      border-radius: 34px;
+      transition: opacity 0.38s ease, transform 0.38s cubic-bezier(0.16,1,0.3,1);
+    }
+
+    .onboarding-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(18px);
+    }
+
+    .onboarding-page {
+      flex: 1;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 32px 28px;
+      gap: 0;
+    }
+
+    .onboarding-page.active { display: flex; }
+
+    .onboarding-icon {
+      font-size: 4rem;
+      line-height: 1;
+      margin-bottom: 20px;
+    }
+
+    .onboarding-title {
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: var(--ink);
+      margin-bottom: 10px;
+    }
+
+    .onboarding-desc {
+      font-size: 0.9rem;
+      color: var(--muted);
+      line-height: 1.5;
+      max-width: 280px;
+    }
+
+    .onboarding-dots {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      padding: 16px 0;
+    }
+
+    .onboarding-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--line);
+      transition: background 0.2s, width 0.2s;
+    }
+
+    .onboarding-dot.active {
+      background: var(--accent);
+      width: 24px;
+    }
+
+    .onboarding-actions {
+      padding: 0 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: max(28px, env(safe-area-inset-bottom) + 12px);
+    }
+
+    .onboarding-skip {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-family: "DM Sans", sans-serif;
+      font-size: 0.84rem;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 8px;
+    }
+
+    /* ── Forgot Password Screen ── */
+    .forgot-success {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      padding: 20px 0;
+    }
+
+    .forgot-success-icon {
+      font-size: 3rem;
+      line-height: 1;
+    }
+
+    .forgot-success-title {
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: var(--ink);
+    }
+
+    .forgot-success-desc {
+      font-size: 0.85rem;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.5;
+    }
+
+    /* ── Sort Dropdown ── */
+    .sort-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 2px 0;
+    }
+
+    .sort-select {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 5px 28px 5px 10px;
+      font-family: "DM Sans", sans-serif;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--muted);
+      background: var(--panel);
+      outline: none;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%23677082' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      cursor: pointer;
+    }
+
+    /* ── Share Sheet ── */
+    .share-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 120;
+      display: flex;
+      flex-direction: column;
+      pointer-events: none;
+      overflow: hidden;
+      border-radius: 34px;
+    }
+
+    .share-overlay.open { pointer-events: all; }
+
+    .share-overlay .del-backdrop {
+      background: rgba(21,24,33,0);
+      transition: background 0.3s ease;
+    }
+
+    .share-overlay.open .del-backdrop { background: rgba(21,24,33,0.48); }
+
+    .share-sheet {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--panel);
+      border-radius: 24px 24px 0 0;
+      padding: 20px 20px 36px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      transform: translateY(100%);
+      transition: transform 0.36s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .share-overlay.open .share-sheet { transform: translateY(0); }
+
+    .share-title {
+      font-size: 1.05rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      text-align: center;
+    }
+
+    .share-preview {
+      background: var(--bg);
+      border-radius: 12px;
+      padding: 14px;
+      font-size: 0.82rem;
+      color: var(--ink);
+      line-height: 1.55;
+      white-space: pre-line;
+      max-height: 140px;
+      overflow-y: auto;
+    }
+
+    .share-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .share-btn {
+      width: 100%;
+      padding: 12px;
+      border-radius: 12px;
+      border: none;
+      font-family: "DM Sans", sans-serif;
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: opacity 0.15s;
+    }
+
+    .share-btn:hover { opacity: 0.85; }
+
+    .share-btn-copy {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .share-btn-sms {
+      background: var(--bg);
+      color: var(--ink);
+      border: 1px solid var(--line);
+    }
+
+    .share-btn-email {
+      background: var(--bg);
+      color: var(--ink);
+      border: 1px solid var(--line);
+    }
+
+    .share-copied {
+      text-align: center;
+      font-size: 0.78rem;
+      color: #34c759;
+      font-weight: 700;
+      min-height: 20px;
+    }
+
+    /* ── Contacts Import Mock ── */
+    .import-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 112;
+      display: flex;
+      flex-direction: column;
+      pointer-events: none;
+      overflow: hidden;
+      border-radius: 34px;
+    }
+
+    .import-overlay.open { pointer-events: all; }
+
+    .import-overlay .del-backdrop {
+      background: rgba(21,24,33,0);
+      transition: background 0.3s ease;
+    }
+
+    .import-overlay.open .del-backdrop { background: rgba(21,24,33,0.48); }
+
+    .import-sheet {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--panel);
+      border-radius: 24px 24px 0 0;
+      padding: 20px 20px 36px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      transform: translateY(100%);
+      transition: transform 0.36s cubic-bezier(0.16, 1, 0.3, 1);
+      max-height: 85%;
+      overflow-y: auto;
+    }
+
+    .import-overlay.open .import-sheet { transform: translateY(0); }
+
+    .import-perm-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.8rem;
+      margin: 0 auto;
+    }
+
+    .import-title {
+      font-size: 1.1rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      text-align: center;
+    }
+
+    .import-desc {
+      font-size: 0.83rem;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.5;
+    }
+
+    .import-contact-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      background: var(--bg);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    .import-contact {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 11px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .import-contact:last-child { border-bottom: none; }
+
+    .import-contact-avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 999px;
+      background: var(--line);
+      color: var(--muted);
+      font-weight: 700;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .import-contact-name {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .import-contact-phone {
+      font-size: 0.76rem;
+      color: var(--muted);
+    }
+
+    .import-check {
+      margin-left: auto;
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      border: 2px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      flex-shrink: 0;
+    }
+
+    .import-check.checked {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .import-check.checked::after {
+      content: "✓";
+      color: #fff;
+      font-size: 0.68rem;
+      font-weight: 800;
+    }
+
   </style>
 </head>
 <body>
@@ -1859,7 +2568,7 @@
           </div>
         </div>
         <div class="auth-forgot">
-          <button type="button">Forgot password?</button>
+          <button type="button" id="loginForgotBtn">Forgot password?</button>
         </div>
         <button class="auth-cta" id="loginSubmitBtn">Sign In</button>
         <div class="auth-divider">or continue with</div>
@@ -2049,11 +2758,31 @@
         <p class="swipe-hint" id="swipeHint">Swipe down for next card, swipe up for previous</p>
 
         <!-- List view (alternative to deck) -->
+        <div id="listSortBar" class="sort-bar" style="display:none;">
+          <span style="font-size:0.75rem;color:var(--muted);font-weight:600;">Sort by</span>
+          <select id="listSortSelect" class="sort-select">
+            <option value="newest">Date Added (Newest)</option>
+            <option value="oldest">Date Added (Oldest)</option>
+            <option value="name-az">Name (A–Z)</option>
+            <option value="name-za">Name (Z–A)</option>
+            <option value="company-az">Company (A–Z)</option>
+          </select>
+        </div>
         <div id="listView" class="list-view"></div>
         <p id="listCount" class="list-count" style="display:none;"></p>
       </div>
 
       <div id="settingsScreen" class="screen">
+
+        <!-- Rolo Pro banner -->
+        <div class="pro-banner" id="settingsProBanner">
+          <span class="pro-banner-icon">⚡</span>
+          <div class="pro-banner-text">
+            <p class="pro-banner-title">Upgrade to Rolo Pro</p>
+            <p class="pro-banner-desc">Unlimited contacts, AI scanning &amp; more</p>
+          </div>
+          <span class="pro-banner-arrow">›</span>
+        </div>
 
         <!-- Integrations -->
         <p class="settings-label">Integrations</p>
@@ -2067,7 +2796,7 @@
           </div>
           <p class="connect-detail">Import and sync contacts directly from your iPhone or Android address book — no manual entry needed. Connect once and keep everything in sync.</p>
           <div class="connect-footer">
-            <button class="btn connect-btn" disabled>Connect Address Book</button>
+            <button class="btn connect-btn" id="connectAddressBookBtn" disabled>Connect Address Book</button>
             <span class="coming-soon-pill">Coming soon</span>
           </div>
         </div>
@@ -2136,7 +2865,10 @@
         <div class="detail-handle"></div>
         <div class="detail-header">
           <button class="detail-close" id="detailCloseBtn">✕</button>
-          <button class="detail-edit-btn" id="detailEditBtn">Edit</button>
+          <div style="display:flex;gap:8px;">
+            <button class="detail-edit-btn" id="detailShareBtn" style="background:var(--bg);color:var(--ink);">Share</button>
+            <button class="detail-edit-btn" id="detailEditBtn">Edit</button>
+          </div>
         </div>
         <div class="detail-body" id="detailBody"></div>
       </div>
@@ -2224,6 +2956,181 @@
           <button id="editSaveBtn" class="btn btn-primary">Save Changes</button>
           <button id="editDeleteBtn" class="btn btn-danger">Delete Contact</button>
         </div>
+      </div>
+    </div>
+
+    <!-- ── Paywall / Subscription Overlay ── -->
+    <div id="paywallOverlay" class="paywall-overlay">
+      <div class="paywall-backdrop" id="paywallBackdrop"></div>
+      <div class="paywall-sheet">
+        <button class="paywall-close" id="paywallCloseBtn">✕</button>
+        <div class="paywall-hero">
+          <div class="paywall-badge"><span class="paywall-badge-icon">⚡</span> Rolo Pro</div>
+          <h2 class="paywall-title">Unlock the full<br/>Rolo experience.</h2>
+          <p class="paywall-subtitle">Unlimited contacts, AI scanning, cloud sync, and more.</p>
+        </div>
+        <div class="paywall-features">
+          <div class="paywall-feature">
+            <div class="paywall-feature-icon">♾️</div>
+            <div class="paywall-feature-text">
+              <p class="paywall-feature-title">Unlimited Contacts</p>
+              <p class="paywall-feature-desc">Free plan limited to 25 contacts</p>
+            </div>
+          </div>
+          <div class="paywall-feature">
+            <div class="paywall-feature-icon">📷</div>
+            <div class="paywall-feature-text">
+              <p class="paywall-feature-title">Unlimited Card Scanning</p>
+              <p class="paywall-feature-desc">AI-powered OCR with no scan limits</p>
+            </div>
+          </div>
+          <div class="paywall-feature">
+            <div class="paywall-feature-icon">☁️</div>
+            <div class="paywall-feature-text">
+              <p class="paywall-feature-title">Cloud Sync &amp; Backup</p>
+              <p class="paywall-feature-desc">Access your contacts on any device</p>
+            </div>
+          </div>
+          <div class="paywall-feature">
+            <div class="paywall-feature-icon">👥</div>
+            <div class="paywall-feature-text">
+              <p class="paywall-feature-title">Phone Contacts Import</p>
+              <p class="paywall-feature-desc">Sync your device address book</p>
+            </div>
+          </div>
+          <div class="paywall-feature">
+            <div class="paywall-feature-icon">🔔</div>
+            <div class="paywall-feature-text">
+              <p class="paywall-feature-title">Follow-up Reminders</p>
+              <p class="paywall-feature-desc">Never forget to follow up</p>
+            </div>
+          </div>
+        </div>
+        <div class="paywall-plans">
+          <div class="paywall-plan" id="planYearly" data-plan="yearly">
+            <div class="paywall-plan-save">SAVE 33%</div>
+            <div class="paywall-plan-radio"></div>
+            <div class="paywall-plan-info">
+              <p class="paywall-plan-name">Yearly</p>
+              <p class="paywall-plan-detail">Billed annually</p>
+            </div>
+            <div>
+              <p class="paywall-plan-price">$39.99</p>
+              <p class="paywall-plan-period">/year</p>
+            </div>
+          </div>
+          <div class="paywall-plan selected" id="planMonthly" data-plan="monthly">
+            <div class="paywall-plan-radio"></div>
+            <div class="paywall-plan-info">
+              <p class="paywall-plan-name">Monthly</p>
+              <p class="paywall-plan-detail">Cancel anytime</p>
+            </div>
+            <div>
+              <p class="paywall-plan-price">$4.99</p>
+              <p class="paywall-plan-period">/month</p>
+            </div>
+          </div>
+          <div class="paywall-plan" id="planLifetime" data-plan="lifetime">
+            <div class="paywall-plan-radio"></div>
+            <div class="paywall-plan-info">
+              <p class="paywall-plan-name">Lifetime</p>
+              <p class="paywall-plan-detail">One-time purchase</p>
+            </div>
+            <div>
+              <p class="paywall-plan-price">$79.99</p>
+              <p class="paywall-plan-period">forever</p>
+            </div>
+          </div>
+        </div>
+        <button class="paywall-cta" id="paywallCtaBtn">Start Free Trial</button>
+        <div class="paywall-footer">
+          <button class="paywall-restore" id="paywallRestoreBtn">Restore Purchase</button>
+          <p class="paywall-terms">7-day free trial, then auto-renews. Cancel anytime in Settings.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Onboarding Overlay ── -->
+    <div id="onboardingOverlay" class="onboarding-overlay hidden">
+      <div class="onboarding-page active" data-page="0">
+        <div class="onboarding-icon">📇</div>
+        <h2 class="onboarding-title">Welcome to Rolo</h2>
+        <p class="onboarding-desc">Your digital Rolodex. Scan, save, and organize all your business contacts in one place.</p>
+      </div>
+      <div class="onboarding-page" data-page="1">
+        <div class="onboarding-icon">📷</div>
+        <h2 class="onboarding-title">Scan Business Cards</h2>
+        <p class="onboarding-desc">Snap a photo of any business card. Our AI reads it and fills in all the contact details for you.</p>
+      </div>
+      <div class="onboarding-page" data-page="2">
+        <div class="onboarding-icon">🗂️</div>
+        <h2 class="onboarding-title">Organize Your Way</h2>
+        <p class="onboarding-desc">Browse your contacts in deck or list view. Filter by category, search by name — find anyone in seconds.</p>
+      </div>
+      <div class="onboarding-page" data-page="3">
+        <div class="onboarding-icon">🚀</div>
+        <h2 class="onboarding-title">You're All Set</h2>
+        <p class="onboarding-desc">Start by scanning your first card or adding a contact manually. Your Rolo is ready to go!</p>
+      </div>
+      <div class="onboarding-dots" id="onboardingDots">
+        <div class="onboarding-dot active" data-dot="0"></div>
+        <div class="onboarding-dot" data-dot="1"></div>
+        <div class="onboarding-dot" data-dot="2"></div>
+        <div class="onboarding-dot" data-dot="3"></div>
+      </div>
+      <div class="onboarding-actions">
+        <button class="btn-white" id="onboardingNextBtn">Next</button>
+        <button class="onboarding-skip" id="onboardingSkipBtn">Skip</button>
+      </div>
+    </div>
+
+    <!-- ── Forgot Password Screen ── -->
+    <div id="forgotScreen" class="auth-screen auth-form-screen hidden">
+      <button class="auth-back" id="forgotBackBtn">
+        <span class="auth-back-arrow">←</span> Back
+      </button>
+      <div class="auth-hero">
+        <img src="rolodex logo 1.png" alt="Rolo" class="auth-hero-logo" />
+        <h1 class="auth-title">Reset password.</h1>
+        <p class="auth-subtitle">Enter your email and we'll send you a link to reset your password.</p>
+      </div>
+      <div class="auth-body" id="forgotBody">
+        <div class="auth-field">
+          <label for="forgotEmail">Email</label>
+          <input id="forgotEmail" type="email" placeholder="you@email.com" autocomplete="email" />
+        </div>
+        <button class="auth-cta" id="forgotSubmitBtn">Send Reset Link</button>
+      </div>
+      <p class="auth-switch">Remember your password? <button id="forgotToLoginBtn">Sign in</button></p>
+    </div>
+
+    <!-- ── Share Contact Sheet ── -->
+    <div id="shareOverlay" class="share-overlay">
+      <div class="del-backdrop" id="shareBackdrop"></div>
+      <div class="share-sheet">
+        <div class="del-handle"></div>
+        <p class="share-title">Share Contact</p>
+        <div class="share-preview" id="sharePreview"></div>
+        <div class="share-actions">
+          <button class="share-btn share-btn-copy" id="shareCopyBtn">📋 Copy to Clipboard</button>
+          <button class="share-btn share-btn-sms" id="shareSmsBtn">💬 Send via Text</button>
+          <button class="share-btn share-btn-email" id="shareEmailBtn">✉️ Send via Email</button>
+        </div>
+        <p class="share-copied" id="shareCopied"></p>
+      </div>
+    </div>
+
+    <!-- ── Phone Contacts Import Mock ── -->
+    <div id="importOverlay" class="import-overlay">
+      <div class="del-backdrop" id="importBackdrop"></div>
+      <div class="import-sheet">
+        <div class="del-handle"></div>
+        <div class="import-perm-icon">👥</div>
+        <p class="import-title">Import Phone Contacts</p>
+        <p class="import-desc">Select contacts from your device address book to add to your Rolo.</p>
+        <div class="import-contact-list" id="importContactList"></div>
+        <button class="btn btn-primary" id="importConfirmBtn" style="width:100%;">Import Selected</button>
+        <button class="btn btn-subtle" id="importCancelBtn" style="width:100%;text-align:center;">Cancel</button>
       </div>
     </div>
   </main>
@@ -3550,6 +4457,326 @@
       const inp = document.getElementById("signupPassword");
       inp.type = inp.type === "password" ? "text" : "password";
     });
+
+    // ─── Paywall ──────────────────────────────────────────────
+    const paywallOverlay = document.getElementById("paywallOverlay");
+    let selectedPlan = "monthly";
+
+    function openPaywall() { paywallOverlay.classList.add("open"); }
+    function closePaywall() { paywallOverlay.classList.remove("open"); }
+
+    document.getElementById("paywallCloseBtn").addEventListener("click", closePaywall);
+    document.getElementById("paywallBackdrop").addEventListener("click", closePaywall);
+    document.getElementById("settingsProBanner").addEventListener("click", openPaywall);
+
+    document.querySelectorAll(".paywall-plan").forEach((plan) => {
+      plan.addEventListener("click", () => {
+        document.querySelectorAll(".paywall-plan").forEach((p) => p.classList.remove("selected"));
+        plan.classList.add("selected");
+        selectedPlan = plan.dataset.plan;
+        const ctaBtn = document.getElementById("paywallCtaBtn");
+        if (selectedPlan === "lifetime") {
+          ctaBtn.textContent = "Purchase Lifetime — $79.99";
+        } else if (selectedPlan === "yearly") {
+          ctaBtn.textContent = "Start Free Trial — $39.99/yr";
+        } else {
+          ctaBtn.textContent = "Start Free Trial — $4.99/mo";
+        }
+      });
+    });
+
+    document.getElementById("paywallCtaBtn").addEventListener("click", () => {
+      closePaywall();
+      const badge = document.querySelector(".account-badge");
+      if (badge) { badge.textContent = "Pro Plan"; badge.style.background = "#1d1d1f"; badge.style.color = "#fff"; }
+      document.getElementById("settingsProBanner").style.display = "none";
+      setStatus("Welcome to Rolo Pro! 🎉");
+      showScreen("deck");
+    });
+
+    document.getElementById("paywallRestoreBtn").addEventListener("click", () => {
+      closePaywall();
+      setStatus("No previous purchases found.");
+    });
+
+    // ─── Onboarding ───────────────────────────────────────────
+    const onboardingOverlay = document.getElementById("onboardingOverlay");
+    let onboardingPage = 0;
+    const totalOnboardingPages = 4;
+
+    function showOnboardingPage(idx) {
+      onboardingPage = idx;
+      document.querySelectorAll(".onboarding-page").forEach((p, i) => p.classList.toggle("active", i === idx));
+      document.querySelectorAll(".onboarding-dot").forEach((d, i) => d.classList.toggle("active", i === idx));
+      const nextBtn = document.getElementById("onboardingNextBtn");
+      const skipBtn = document.getElementById("onboardingSkipBtn");
+      if (idx === totalOnboardingPages - 1) {
+        nextBtn.textContent = "Get Started";
+        skipBtn.style.display = "none";
+      } else {
+        nextBtn.textContent = "Next";
+        skipBtn.style.display = "";
+      }
+    }
+
+    function dismissOnboarding() {
+      onboardingOverlay.classList.add("hidden");
+      localStorage.setItem("rolo_onboarded", "1");
+      setTimeout(() => onboardingOverlay.remove(), 400);
+    }
+
+    document.getElementById("onboardingNextBtn").addEventListener("click", () => {
+      if (onboardingPage < totalOnboardingPages - 1) {
+        showOnboardingPage(onboardingPage + 1);
+      } else {
+        dismissOnboarding();
+      }
+    });
+
+    document.getElementById("onboardingSkipBtn").addEventListener("click", dismissOnboarding);
+
+    // Show onboarding after auth dismissal for new users
+    const originalDismissAuth = dismissAuth;
+    dismissAuth = function () {
+      originalDismissAuth();
+      if (!localStorage.getItem("rolo_onboarded")) {
+        setTimeout(() => {
+          onboardingOverlay.classList.remove("hidden");
+          showOnboardingPage(0);
+        }, 500);
+      }
+    };
+
+    // If already onboarded, remove overlay immediately
+    if (localStorage.getItem("rolo_onboarded")) {
+      onboardingOverlay.remove();
+    }
+
+    // ─── Forgot Password ──────────────────────────────────────
+    const forgotScreen = document.getElementById("forgotScreen");
+
+    document.getElementById("loginForgotBtn").addEventListener("click", () => {
+      showAuthScreen(forgotScreen);
+    });
+
+    document.getElementById("forgotBackBtn").addEventListener("click", () => {
+      showAuthScreen(loginScreen);
+    });
+
+    document.getElementById("forgotToLoginBtn").addEventListener("click", () => {
+      showAuthScreen(loginScreen);
+    });
+
+    document.getElementById("forgotSubmitBtn").addEventListener("click", () => {
+      const email = document.getElementById("forgotEmail").value.trim();
+      const body = document.getElementById("forgotBody");
+      body.innerHTML = `
+        <div class="forgot-success">
+          <div class="forgot-success-icon">✉️</div>
+          <p class="forgot-success-title">Check your email</p>
+          <p class="forgot-success-desc">We sent a password reset link to<br/><strong>${escapeHtml(email || "your email")}</strong></p>
+        </div>
+        <button class="auth-cta" onclick="document.getElementById('forgotBody').innerHTML='<div class=\\'auth-field\\'><label for=\\'forgotEmail\\'>Email</label><input id=\\'forgotEmail\\' type=\\'email\\' placeholder=\\'you@email.com\\' autocomplete=\\'email\\' /></div><button class=\\'auth-cta\\' id=\\'forgotSubmitBtn\\'>Send Reset Link</button>';document.getElementById('forgotSubmitBtn').addEventListener('click',arguments.callee);">Back to Sign In</button>
+      `;
+      setTimeout(() => showAuthScreen(loginScreen), 3000);
+    });
+
+    // Update showAuthScreen to include forgot
+    const _origShowAuthScreen = showAuthScreen;
+    showAuthScreen = function(screen) {
+      [splashScreen, loginScreen, signupScreen, forgotScreen].forEach((s) => {
+        s.classList.toggle("hidden", s !== screen);
+      });
+    };
+
+    // ─── Sort Options (List View) ─────────────────────────────
+    document.getElementById("listSortSelect").addEventListener("change", () => {
+      if (state.viewMode === "list") renderList();
+    });
+
+    // Update switchView to show/hide sort bar
+    const _origSwitchView = switchView;
+    switchView = function(mode) {
+      _origSwitchView(mode);
+      document.getElementById("listSortBar").style.display = mode === "list" ? "flex" : "none";
+    };
+
+    // Update renderList to apply sorting
+    const _origRenderList = renderList;
+    renderList = function() {
+      const sortVal = document.getElementById("listSortSelect").value;
+      const sorted = [...state.filtered];
+      switch (sortVal) {
+        case "newest":
+          sorted.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+          break;
+        case "oldest":
+          sorted.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+          break;
+        case "name-az":
+          sorted.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+          break;
+        case "name-za":
+          sorted.sort((a, b) => (b.name || "").localeCompare(a.name || ""));
+          break;
+        case "company-az":
+          sorted.sort((a, b) => (a.company || "").localeCompare(b.company || ""));
+          break;
+      }
+      // Temporarily swap filtered for sorted rendering
+      const orig = state.filtered;
+      state.filtered = sorted;
+      _origRenderList();
+      state.filtered = orig;
+    };
+
+    // ─── Share Contact ────────────────────────────────────────
+    const shareOverlay = document.getElementById("shareOverlay");
+    let shareItem = null;
+
+    function formatContactText(item) {
+      const lines = [];
+      if (item.name) lines.push(item.name);
+      if (item.title) lines.push(item.title);
+      if (item.company) lines.push(item.company);
+      if (item.phone) lines.push("📞 " + item.phone);
+      if (item.email) lines.push("✉️ " + item.email);
+      if (item.website) lines.push("🌐 " + item.website);
+      if (item.address) lines.push("📍 " + item.address);
+      return lines.join("\n");
+    }
+
+    function openShareOverlay(item) {
+      shareItem = item;
+      document.getElementById("sharePreview").textContent = formatContactText(item);
+      document.getElementById("shareCopied").textContent = "";
+      shareOverlay.classList.add("open");
+    }
+
+    function closeShareOverlay() {
+      shareOverlay.classList.remove("open");
+      shareItem = null;
+    }
+
+    document.getElementById("shareBackdrop").addEventListener("click", closeShareOverlay);
+
+    document.getElementById("detailShareBtn").addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (detailItem) {
+        openShareOverlay(detailItem);
+      }
+    });
+
+    document.getElementById("shareCopyBtn").addEventListener("click", () => {
+      if (!shareItem) return;
+      const text = formatContactText(shareItem);
+      navigator.clipboard.writeText(text).then(() => {
+        document.getElementById("shareCopied").textContent = "✓ Copied to clipboard!";
+        setTimeout(() => { document.getElementById("shareCopied").textContent = ""; }, 2000);
+      }).catch(() => {
+        document.getElementById("shareCopied").textContent = "Could not copy — try manually.";
+      });
+    });
+
+    document.getElementById("shareSmsBtn").addEventListener("click", () => {
+      if (!shareItem) return;
+      const text = formatContactText(shareItem);
+      window.open("sms:?body=" + encodeURIComponent(text));
+      closeShareOverlay();
+    });
+
+    document.getElementById("shareEmailBtn").addEventListener("click", () => {
+      if (!shareItem) return;
+      const text = formatContactText(shareItem);
+      const subject = shareItem.name ? "Contact: " + shareItem.name : "Shared Contact";
+      window.open("mailto:?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(text));
+      closeShareOverlay();
+    });
+
+    // ─── Phone Contacts Import Mock ───────────────────────────
+    const importOverlay = document.getElementById("importOverlay");
+
+    const MOCK_PHONE_CONTACTS = [
+      { name: "Mom", phone: "+1 (555) 123-4567" },
+      { name: "Dad", phone: "+1 (555) 123-4568" },
+      { name: "Alex Rivera", phone: "+1 (212) 555-0199" },
+      { name: "Sarah Kim", phone: "+1 (310) 555-0234" },
+      { name: "Dr. Patel", phone: "+1 (646) 555-0312" },
+      { name: "Jake from State Farm", phone: "+1 (800) 555-0100" },
+      { name: "Lisa Wong", phone: "+1 (415) 555-0456" },
+      { name: "Carlos Mendez", phone: "+1 (305) 555-0789" },
+    ];
+
+    function openImportOverlay() {
+      const list = document.getElementById("importContactList");
+      list.innerHTML = "";
+      MOCK_PHONE_CONTACTS.forEach((c, i) => {
+        const initial = c.name.slice(0, 1).toUpperCase();
+        const row = document.createElement("div");
+        row.className = "import-contact";
+        row.innerHTML = `
+          <div class="import-contact-avatar">${escapeHtml(initial)}</div>
+          <div>
+            <p class="import-contact-name">${escapeHtml(c.name)}</p>
+            <p class="import-contact-phone">${escapeHtml(c.phone)}</p>
+          </div>
+          <div class="import-check checked" data-idx="${i}"></div>
+        `;
+        const check = row.querySelector(".import-check");
+        check.addEventListener("click", (e) => {
+          e.stopPropagation();
+          check.classList.toggle("checked");
+        });
+        list.appendChild(row);
+      });
+      importOverlay.classList.add("open");
+    }
+
+    function closeImportOverlay() { importOverlay.classList.remove("open"); }
+
+    document.getElementById("importBackdrop").addEventListener("click", closeImportOverlay);
+    document.getElementById("importCancelBtn").addEventListener("click", closeImportOverlay);
+
+    document.getElementById("connectAddressBookBtn").addEventListener("click", openImportOverlay);
+
+    document.getElementById("importConfirmBtn").addEventListener("click", () => {
+      const checks = document.querySelectorAll("#importContactList .import-check.checked");
+      let imported = 0;
+      checks.forEach((check) => {
+        const idx = parseInt(check.dataset.idx);
+        const mc = MOCK_PHONE_CONTACTS[idx];
+        if (!mc) return;
+        const exists = state.contacts.some((c) => c.phone === mc.phone || c.name === mc.name);
+        if (exists) return;
+        state.contacts.unshift({
+          name: mc.name,
+          phone: mc.phone,
+          title: "",
+          company: "",
+          email: "",
+          website: "",
+          address: "",
+          notes: "Imported from phone contacts",
+          category: "",
+          id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
+          createdAt: new Date().toISOString()
+        });
+        imported++;
+      });
+      persistContacts();
+      syncFilter();
+      renderFilterPills();
+      renderCurrentView();
+      closeImportOverlay();
+      setStatus(`${imported} contact${imported === 1 ? "" : "s"} imported from phone.`);
+      showScreen("deck");
+    });
+
+    // Enable the Connect Address Book button (remove disabled)
+    document.getElementById("connectAddressBookBtn").removeAttribute("disabled");
+    document.getElementById("connectAddressBookBtn").classList.remove("connect-btn");
+    document.getElementById("connectAddressBookBtn").classList.add("btn-primary");
+    document.querySelector(".coming-soon-pill").style.display = "none";
 
   </script>
 </body>
