@@ -1,6 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text, View, StyleSheet, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../utils/theme';
 import DeckScreen from '../screens/DeckScreen';
 import ScanScreen from '../screens/ScanScreen';
@@ -9,8 +10,10 @@ import SettingsScreen from '../screens/SettingsScreen';
 const Tab = createBottomTabNavigator();
 
 function TabBar({ state, descriptors, navigation }: any) {
+  const insets = useSafeAreaInsets();
+  const bottomOffset = Math.max(insets.bottom, 8) + 8;
   return (
-    <View style={styles.tabBar}>
+    <View style={[styles.tabBar, { bottom: bottomOffset }]}>
       {state.routes.map((route: any, index: number) => {
         const isFocused = state.index === index;
         const isPlus = route.name === 'Scan';
@@ -64,14 +67,13 @@ export default function AppNavigator() {
 const styles = StyleSheet.create({
   tabBar: {
     position: 'absolute',
-    left: 10,
-    right: 10,
-    bottom: 10,
+    left: 16,
+    right: 16,
     height: 66,
     backgroundColor: 'rgba(255,255,255,0.96)',
     borderWidth: 1,
     borderColor: '#e8edf5',
-    borderRadius: 20,
+    borderRadius: 28,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,

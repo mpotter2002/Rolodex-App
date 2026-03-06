@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../utils/theme';
 
 interface Props { onClose: () => void; onPurchase: () => void; }
@@ -15,6 +16,7 @@ const FEATURES = [
 ];
 
 export default function PaywallSheet({ onClose, onPurchase }: Props) {
+  const insets = useSafeAreaInsets();
   const [plan, setPlan] = useState<Plan>('monthly');
 
   const ctaText = plan === 'lifetime' ? 'Purchase Lifetime — $79.99'
@@ -25,8 +27,8 @@ export default function PaywallSheet({ onClose, onPurchase }: Props) {
     <Modal transparent animationType="slide" onRequestClose={onClose}>
       <View style={s.container}>
         <ScrollView style={s.sheet} showsVerticalScrollIndicator={false}>
-          <TouchableOpacity style={s.closeBtn} onPress={onClose}><Text style={s.closeBtnText}>✕</Text></TouchableOpacity>
-          <View style={s.hero}>
+          <TouchableOpacity style={[s.closeBtn, { top: insets.top + 14 }]} onPress={onClose}><Text style={s.closeBtnText}>✕</Text></TouchableOpacity>
+          <View style={[s.hero, { paddingTop: insets.top + 52 }]}>
             <View style={s.badge}><Text style={s.badgeText}>⚡ ROLO PRO</Text></View>
             <Text style={s.title}>{'Unlock the full\nRolo experience.'}</Text>
             <Text style={s.subtitle}>Unlimited contacts, AI scanning, cloud sync, and more.</Text>

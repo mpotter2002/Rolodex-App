@@ -3,6 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, FlatList,
   StyleSheet, Image, ScrollView,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius } from '../utils/theme';
 import { useContacts } from '../utils/ContactsContext';
@@ -193,12 +194,11 @@ export default function DeckScreen() {
     );
   }, []);
 
-  // Two-phase animation: card exits first, then new card enters — no cube overlap
-  const EXIT_POINT = 0.42;
+  // Two-phase animation with slight overlap to prevent flash of empty screen
+  const EXIT_POINT = 0.38;
+  const ENTER_START = 0.30; // enter begins slightly before exit finishes
   const exitProgress = Math.min(1, flipProgress / EXIT_POINT);
-  const enterProgress = exitProgress >= 1
-    ? Math.min(1, (flipProgress - EXIT_POINT) / (1 - EXIT_POINT))
-    : 0;
+  const enterProgress = Math.min(1, Math.max(0, (flipProgress - ENTER_START) / (1 - ENTER_START)));
 
   // Exit: aggressive ease-in (snaps away fast)
   const easeInQuart = (t: number) => t * t * t * t;
@@ -260,13 +260,15 @@ export default function DeckScreen() {
           style={[s.toggleBtn, viewMode === 'deck' && s.toggleActive]}
           onPress={() => setViewMode('deck')}
         >
-          <Text style={[s.toggleText, viewMode === 'deck' && s.toggleTextActive]}>📇 Deck</Text>
+          <Ionicons name="albums-outline" size={13} color={viewMode === 'deck' ? colors.ink : colors.muted} style={{ marginRight: 4 }} />
+          <Text style={[s.toggleText, viewMode === 'deck' && s.toggleTextActive]}>Deck</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[s.toggleBtn, viewMode === 'list' && s.toggleActive]}
           onPress={() => setViewMode('list')}
         >
-          <Text style={[s.toggleText, viewMode === 'list' && s.toggleTextActive]}>☰ List</Text>
+          <Ionicons name="list-outline" size={13} color={viewMode === 'list' ? colors.ink : colors.muted} style={{ marginRight: 4 }} />
+          <Text style={[s.toggleText, viewMode === 'list' && s.toggleTextActive]}>List</Text>
         </TouchableOpacity>
       </View>
 
@@ -357,7 +359,7 @@ export default function DeckScreen() {
             </View>
           ) : (
             <View style={s.empty}>
-              <Text style={s.emptyIcon}>📇</Text>
+              <Ionicons name="albums-outline" size={48} color={colors.muted} />
               <Text style={s.emptyTitle}>No contacts yet</Text>
               <Text style={s.emptyDesc}>Scan a business card to add your first contact.</Text>
             </View>
@@ -366,13 +368,13 @@ export default function DeckScreen() {
           {/* Deck Controls */}
           <View style={s.deckControls}>
             <TouchableOpacity style={s.roundBtn} onPress={() => navigate(-1)}>
-              <Text style={s.roundText}>↓</Text>
+              <Ionicons name="chevron-down" size={20} color="#fff" />
             </TouchableOpacity>
             <Text style={s.count}>
               {filtered.length ? `${deckIndex + 1} / ${filtered.length}` : '0 / 0'}
             </Text>
             <TouchableOpacity style={s.roundBtn} onPress={() => navigate(1)}>
-              <Text style={s.roundText}>↑</Text>
+              <Ionicons name="chevron-up" size={20} color="#fff" />
             </TouchableOpacity>
           </View>
           <Text style={s.swipeHint}>Swipe down for next card, swipe up for previous</Text>
@@ -435,7 +437,7 @@ const s = StyleSheet.create({
   toggle: {
     flexDirection: 'row', backgroundColor: colors.bg, borderRadius: 12, padding: 3, gap: 2, marginBottom: 8,
   },
-  toggleBtn: { flex: 1, paddingVertical: 7, borderRadius: 10, alignItems: 'center' },
+  toggleBtn: { flex: 1, paddingVertical: 7, borderRadius: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
   toggleActive: { backgroundColor: colors.panel, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
   toggleText: { fontSize: 12.5, fontWeight: '700', color: colors.muted },
   toggleTextActive: { color: colors.ink },
@@ -469,7 +471,7 @@ const s = StyleSheet.create({
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
   footerDate: { fontSize: 12.5, color: '#5d6a7d' },
   catTag: { fontSize: 9.5, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase', backgroundColor: colors.accentSoft, color: colors.accent, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2, overflow: 'hidden' },
-  deckControls: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10, marginTop: 14 },
+  deckControls: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10, marginTop: 14, zIndex: 10 },
   roundBtn: { width: 40, height: 40, borderRadius: 999, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' },
   roundText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   count: { minWidth: 84, textAlign: 'center', fontWeight: '700', color: '#485568', fontSize: 13.5 },
