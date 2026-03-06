@@ -1,30 +1,55 @@
 {
   "expo": {
-    "name": "rolo-app",
+    "name": "Rolo",
     "slug": "rolo-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/rolo-logo.png",
     "userInterfaceStyle": "light",
+    "scheme": "rolo",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/rolo-logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "com.rolo.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Rolo needs camera access to scan business cards.",
+        "NSPhotoLibraryUsageDescription": "Rolo needs photo library access to import business card images.",
+        "NSContactsUsageDescription": "Rolo can import contacts from your address book."
+      }
     },
     "android": {
+      "package": "com.rolo.app",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#ffffff",
+        "foregroundImage": "./assets/rolo-logo.png"
       },
-      "predictiveBackGestureEnabled": false
+      "permissions": [
+        "CAMERA",
+        "READ_CONTACTS",
+        "READ_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-camera",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Rolo needs photo library access to import business card images.",
+          "cameraPermission": "Rolo needs camera access to scan business cards."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": ""
+      }
     }
   }
 }
