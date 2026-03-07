@@ -370,10 +370,13 @@ export default function DeckScreen() {
                     ]}
                     pointerEvents="none"
                   >
-                    {/* Tab sticks above backdrop card too */}
-                    <View style={[s.cardTab, contact.cardColors ? { backgroundColor: contact.cardColors.accentHex } : null]}>
-                      <Text style={s.cardTabText}>{(contact.name || '?').charAt(0).toUpperCase()}</Text>
-                    </View>
+                    {/* Only show the tab on depth 2+ — depth-1 card body is mostly hidden behind
+                        the main card so its tab looks like it's floating with no card beneath it */}
+                    {depth > 1 && (
+                      <View style={[s.cardTab, contact.cardColors ? { backgroundColor: contact.cardColors.accentHex } : null]}>
+                        <Text style={s.cardTabText}>{(contact.name || '?').charAt(0).toUpperCase()}</Text>
+                      </View>
+                    )}
                   </View>
                 );
               })}
