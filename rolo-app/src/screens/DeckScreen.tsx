@@ -165,15 +165,18 @@ export default function DeckScreen() {
   function getBackdropCards() {
     const total = filtered.length;
     if (total <= 1) return [];
+    // All backdrop cards stack above the main card (peek from the top),
+    // matching the physical Rolodex look. Bottom has a small peek too.
+    const maxAbove = Math.min(3, total - 1);
+    const maxBelow = Math.min(3, total - 1);
     const cards: { contact: Contact; offset: number }[] = [];
-    const maxDepth = Math.min(3, Math.floor((total - 1) / 2));
-    for (let d = 1; d <= maxDepth; d++) {
-      const topIdx = (deckIndex - d + total) % total;
-      cards.push({ contact: filtered[topIdx], offset: -d });
+    for (let d = 1; d <= maxAbove; d++) {
+      const idx = (deckIndex - d + total) % total;
+      cards.push({ contact: filtered[idx], offset: -d });
     }
-    for (let d = 1; d <= maxDepth; d++) {
-      const bottomIdx = (deckIndex + d) % total;
-      cards.push({ contact: filtered[bottomIdx], offset: d });
+    for (let d = 1; d <= maxBelow; d++) {
+      const idx = (deckIndex + d) % total;
+      cards.push({ contact: filtered[idx], offset: d });
     }
     return cards;
   }
@@ -311,7 +314,8 @@ export default function DeckScreen() {
               {/* Background cards (stacked behind) */}
               {getBackdropCards().map(({ contact, offset }) => {
                 const depth = Math.abs(offset);
-                const yShift = offset * 34;
+                // Top cards fan out with 34px spacing; bottom cards use 18px to fit the tighter gap
+                const yShift = offset < 0 ? offset * 34 : offset * 18;
                 const scaleVal = 1 - depth * 0.04;
                 const opacityVal = depth === 1 ? 0.5 : depth === 2 ? 0.25 : 0.12;
                 const blurShadow = depth === 1 ? 0.12 : depth === 2 ? 0.06 : 0.03;
