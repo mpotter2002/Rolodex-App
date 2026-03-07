@@ -166,7 +166,7 @@ export default function DeckScreen() {
     const total = filtered.length;
     if (total <= 1) return [];
     const cards: { contact: Contact; offset: number }[] = [];
-    const maxDepth = Math.min(2, Math.floor((total - 1) / 2));
+    const maxDepth = Math.min(3, Math.floor((total - 1) / 2));
     for (let d = 1; d <= maxDepth; d++) {
       const topIdx = (deckIndex - d + total) % total;
       cards.push({ contact: filtered[topIdx], offset: -d });
@@ -313,8 +313,8 @@ export default function DeckScreen() {
                 const depth = Math.abs(offset);
                 const yShift = offset * 34;
                 const scaleVal = 1 - depth * 0.04;
-                const opacityVal = depth === 1 ? 0.5 : 0.25;
-                const blurShadow = depth === 1 ? 0.12 : 0.06;
+                const opacityVal = depth === 1 ? 0.5 : depth === 2 ? 0.25 : 0.12;
+                const blurShadow = depth === 1 ? 0.12 : depth === 2 ? 0.06 : 0.03;
                 return (
                   <View
                     key={`bg-${contact.id}-${offset}`}
