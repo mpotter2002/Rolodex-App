@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
-  StyleSheet, Image, ScrollView, Animated,
+  StyleSheet, Image, ScrollView, Animated, useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,6 +15,10 @@ type SortKey = 'newest' | 'oldest' | 'name-az' | 'name-za' | 'company-az';
 
 export default function DeckScreen() {
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
+  // Viewport height = window minus all fixed UI overhead (header, search, toggle, categories, controls, hint, nav)
+  // Clamped between 160px (min usable) and 420px (max comfortable)
+  const vpHeight = Math.max(160, Math.min(420, windowHeight - 370));
   const { contacts } = useContacts();
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('');
@@ -335,13 +339,13 @@ export default function DeckScreen() {
       {viewMode === 'deck' ? (
         <View style={s.deckArea}>
           {currentCard ? (
-            <View style={s.deckViewport}>
+            <View style={[s.deckViewport, { height: vpHeight }]}>
               {/* Background cards (stacked behind) */}
               {getBackdropCards().map(({ contact, offset }) => {
                 const depth = Math.abs(offset);
                 const yShift = offset * 34;
                 const scaleVal = 1 - depth * 0.04;
-                const opacityVal = depth === 1 ? 0.55 : depth === 2 ? 0.32 : depth === 3 ? 0.18 : 0.09;
+                const opacityVal = depth === 1 ? 0.82 : depth === 2 ? 0.50 : depth === 3 ? 0.28 : 0.14;
                 const blurShadow = depth === 1 ? 0.12 : depth === 2 ? 0.07 : 0.03;
                 return (
                   <View
@@ -491,15 +495,15 @@ const s = StyleSheet.create({
   pillText: { fontSize: 13.5, fontWeight: '600', color: colors.muted },
   pillTextActive: { color: '#fff' },
   // Deck
-  deckArea: { flex: 1, justifyContent: 'center' },
-  deckViewport: { height: 400, justifyContent: 'center', alignItems: 'center', position: 'relative' as const, overflow: 'visible' as const, marginTop: 8, marginBottom: 4 },
+  deckArea: { flex: 1, justifyContent: 'center', overflow: 'hidden' as const },
+  deckViewport: { justifyContent: 'center', alignItems: 'center', position: 'relative' as const, overflow: 'visible' as const, marginTop: 8, marginBottom: 4 },
   rolocard: {
     backgroundColor: '#fff', borderWidth: 1, borderColor: '#edf1f6', borderRadius: 20, padding: 14,
     shadowColor: '#18212f', shadowOffset: { width: 0, height: 16 }, shadowOpacity: 0.18, shadowRadius: 28, elevation: 6,
-    gap: 8, minHeight: 260,
+    gap: 8, minHeight: 180,
   },
   mainCard: { position: 'absolute' as const, left: 0, right: 0, zIndex: 5 },
-  backdropCard: { position: 'absolute' as const, left: 8, right: 8, minHeight: 260 },
+  backdropCard: { position: 'absolute' as const, left: 8, right: 8, minHeight: 180 },
   cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   chip: { backgroundColor: '#f0f0f2', borderWidth: 1, borderColor: '#d2d2d7', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, maxWidth: 140 },
   chipText: { fontSize: 11, fontWeight: '600', color: '#3a3a3c' },
