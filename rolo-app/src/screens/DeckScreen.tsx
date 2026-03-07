@@ -309,7 +309,8 @@ export default function DeckScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Category Filter */}
+      {/* Category Filter — kept outside the content fade so pills stay fully opaque */}
+      <View style={{ backgroundColor: colors.panel }}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filterBar} contentContainerStyle={s.filterContent}>
         <TouchableOpacity
           style={[s.pill, !activeCategory && s.pillActive]}
@@ -327,9 +328,10 @@ export default function DeckScreen() {
           </TouchableOpacity>
         ))}
       </ScrollView>
+      </View>
 
       {/* Deck or List — fades when switching modes */}
-      <Animated.View style={{ flex: 1, opacity: contentFade }}>
+      <Animated.View style={{ flex: 1, opacity: contentFade, backgroundColor: colors.panel }}>
       {viewMode === 'deck' ? (
         <View style={s.deckArea}>
           {currentCard ? (
