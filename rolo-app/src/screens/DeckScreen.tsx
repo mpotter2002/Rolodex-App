@@ -343,7 +343,7 @@ export default function DeckScreen() {
               {/* Background cards (stacked behind) */}
               {getBackdropCards().map(({ contact, offset }) => {
                 const depth = Math.abs(offset);
-                const yShift = offset * 48;
+                const yShift = offset * 68;
                 const scaleVal = 1 - depth * 0.04;
                 const opacityVal = depth === 1 ? 0.82 : depth === 2 ? 0.50 : depth === 3 ? 0.28 : 0.14;
                 const blurShadow = depth === 1 ? 0.12 : depth === 2 ? 0.07 : 0.03;
