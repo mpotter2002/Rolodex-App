@@ -376,13 +376,13 @@ export default function DeckScreen() {
 
           {/* Deck Controls */}
           <View style={s.deckControls}>
-            <TouchableOpacity style={s.roundBtn} onPress={() => navigate(-1)}>
+            <TouchableOpacity style={s.roundBtn} onPress={() => navigate(1)}>
               <Ionicons name="chevron-down" size={20} color="#fff" />
             </TouchableOpacity>
             <Text style={s.count}>
               {filtered.length ? `${deckIndex + 1} / ${filtered.length}` : '0 / 0'}
             </Text>
-            <TouchableOpacity style={s.roundBtn} onPress={() => navigate(1)}>
+            <TouchableOpacity style={s.roundBtn} onPress={() => navigate(-1)}>
               <Ionicons name="chevron-up" size={20} color="#fff" />
             </TouchableOpacity>
           </View>
