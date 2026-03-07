@@ -119,13 +119,15 @@ export default function DeckScreen() {
   }, [filtered.length, deckIndex, animating]);
 
   function renderDeckCardContent(contact: Contact, interactive: boolean) {
-    const content = (
+    const initial = (contact.name || '?').charAt(0).toUpperCase();
+    const tabColor = contact.cardColors ? { backgroundColor: contact.cardColors.accentHex } : null;
+
+    const body = (
       <>
         <View style={s.cardRow}>
           <View style={s.chip}><Text style={s.chipText} numberOfLines={1}>{contact.company || 'Contact'}</Text></View>
-          <View style={[s.cardTab, contact.cardColors ? { backgroundColor: contact.cardColors.accentHex } : null]}>
-            <Text style={s.cardTabText}>{(contact.name || '?').charAt(0).toUpperCase()}</Text>
-          </View>
+          {/* spacer keeps chip from running under the absolute tab */}
+          <View style={{ width: 36 }} />
         </View>
         <Text style={s.cardName}>{contact.name || 'Unnamed'}</Text>
         <Text style={s.cardTitle}>{contact.title || 'No title added'}</Text>
@@ -143,15 +145,21 @@ export default function DeckScreen() {
       </>
     );
 
-    if (interactive) {
-      return (
-        <TouchableOpacity activeOpacity={0.85} onPress={() => setSelectedContact(contact)} style={s.cardBody}>
-          {content}
-        </TouchableOpacity>
-      );
-    }
-
-    return <View style={s.cardBody}>{content}</View>;
+    return (
+      <>
+        {/* Tab sticks above the card's top-right corner, flips with the card */}
+        <View style={[s.cardTab, tabColor]}>
+          <Text style={s.cardTabText}>{initial}</Text>
+        </View>
+        {interactive ? (
+          <TouchableOpacity activeOpacity={0.85} onPress={() => setSelectedContact(contact)} style={s.cardBody}>
+            {body}
+          </TouchableOpacity>
+        ) : (
+          <View style={s.cardBody}>{body}</View>
+        )}
+      </>
+    );
   }
 
   function getBackdropCards() {
@@ -330,13 +338,10 @@ export default function DeckScreen() {
                     ]}
                     pointerEvents="none"
                   >
-                    <View style={s.cardRow}>
-                      <View style={s.chip}><Text style={s.chipText} numberOfLines={1}>{contact.company || 'Contact'}</Text></View>
-                      <View style={[s.cardTab, contact.cardColors ? { backgroundColor: contact.cardColors.accentHex } : null]}>
-                        <Text style={s.cardTabText}>{(contact.name || '?').charAt(0).toUpperCase()}</Text>
-                      </View>
+                    {/* Tab sticks above backdrop card too */}
+                    <View style={[s.cardTab, contact.cardColors ? { backgroundColor: contact.cardColors.accentHex } : null]}>
+                      <Text style={s.cardTabText}>{(contact.name || '?').charAt(0).toUpperCase()}</Text>
                     </View>
-                    <Text style={[s.cardName, { opacity: 0 }]}>{contact.name}</Text>
                   </View>
                 );
               })}
@@ -464,7 +469,13 @@ const s = StyleSheet.create({
   cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   chip: { backgroundColor: '#f0f0f2', borderWidth: 1, borderColor: '#d2d2d7', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, maxWidth: 140 },
   chipText: { fontSize: 11, fontWeight: '600', color: '#3a3a3c' },
-  cardTab: { backgroundColor: colors.accent, width: 28, height: 22, borderRadius: 5, alignItems: 'center', justifyContent: 'center' },
+  cardTab: {
+    position: 'absolute', top: -18, right: 20,
+    backgroundColor: colors.accent, width: 28, height: 22,
+    borderTopLeftRadius: 5, borderTopRightRadius: 5,
+    borderBottomLeftRadius: 0, borderBottomRightRadius: 0,
+    alignItems: 'center', justifyContent: 'center', zIndex: 10,
+  },
   cardTabText: { color: '#fff', fontSize: 10.5, fontWeight: '800', textTransform: 'uppercase' },
   cardName: { fontSize: 19.5, fontWeight: '800', letterSpacing: -0.3, color: colors.ink },
   cardTitle: { fontSize: 15, color: colors.muted, marginTop: -2 },
