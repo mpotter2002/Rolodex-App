@@ -199,9 +199,11 @@ export default function DeckScreen() {
     // No cards below — there isn't space and the top-only stack looks much cleaner.
     const maxDepth = Math.min(4, total - 1);
     const cards: { contact: Contact; offset: number }[] = [];
-    for (let d = 1; d <= maxDepth; d++) {
+    // Start at d=2 so the closest backdrop is the card two spots back (skips the card directly
+    // behind which was barely visible and made the stack look cluttered)
+    for (let d = 2; d <= maxDepth + 1; d++) {
       const idx = (deckIndex - d + total) % total;
-      cards.push({ contact: filtered[idx], offset: -d });
+      cards.push({ contact: filtered[idx], offset: -(d - 1) }); // remap: d=2→offset-1, d=3→-2, etc.
     }
     return cards;
   }
@@ -340,10 +342,20 @@ export default function DeckScreen() {
         <View style={s.deckArea}>
           {currentCard ? (
             <View style={[s.deckViewport, { height: vpHeight }]}>
+              {/* Anchor: a non-absolute box that flexbox can centre; all cards
+                  are absolute children pinned to top:0 inside it so their
+                  position never shifts regardless of content height. */}
+              <View style={s.cardAnchor}>
               {/* Background cards (stacked behind) */}
               {getBackdropCards().map(({ contact, offset }) => {
                 const depth = Math.abs(offset);
-                const yShift = offset * 52;
+                // Base shift per depth level; extra nudge on depth-1 so the closest tab
+                // clears the main card's tab, then uniform 48px gaps after that
+                const baseGap = 42;
+                const firstPad = 38; // extra clearance so the closest tab matches the even gap
+                const yShift = depth === 1
+                  ? -(baseGap + firstPad)          // -66px  → closest card
+                  : -(baseGap + firstPad + baseGap * (depth - 1)); // -114, -162, -210
                 const scaleVal = 1 - depth * 0.04;
                 const opacityVal = depth === 1 ? 0.82 : depth === 2 ? 0.50 : depth === 3 ? 0.28 : 0.14;
                 const blurShadow = depth === 1 ? 0.12 : depth === 2 ? 0.07 : 0.03;
@@ -392,10 +404,15 @@ export default function DeckScreen() {
                   </View>
                 </>
               ) : (
-                <View style={[s.rolocard, s.mainCard, { zIndex: 5 }]}>
+                <View style={[s.rolocard, s.mainCard, {
+                  zIndex: 5,
+                  transformOrigin: 'center bottom',
+                  transform: [{ perspective: 900 }, { rotateX: '0deg' }],
+                }]}>
                   {renderDeckCardContent(currentCard, true)}
                 </View>
               )}
+              </View>{/* end cardAnchor */}
             </View>
           ) : (
             <View style={s.empty}>
@@ -495,14 +512,15 @@ const s = StyleSheet.create({
   pillTextActive: { color: '#fff' },
   // Deck
   deckArea: { flex: 1, justifyContent: 'center', overflow: 'hidden' as const },
-  deckViewport: { justifyContent: 'center', alignItems: 'center', position: 'relative' as const, overflow: 'visible' as const, marginTop: 8, marginBottom: 4 },
+  deckViewport: { justifyContent: 'center' as const, position: 'relative' as const, overflow: 'visible' as const, marginTop: 8, marginBottom: 4 },
+  cardAnchor: { height: 180, width: '100%' as unknown as number, position: 'relative' as const, overflow: 'visible' as const },
   rolocard: {
     backgroundColor: '#fff', borderWidth: 1, borderColor: '#edf1f6', borderRadius: 20, padding: 14,
     shadowColor: '#18212f', shadowOffset: { width: 0, height: 16 }, shadowOpacity: 0.18, shadowRadius: 28, elevation: 6,
     gap: 8, minHeight: 180,
   },
-  mainCard: { position: 'absolute' as const, left: 0, right: 0, zIndex: 5 },
-  backdropCard: { position: 'absolute' as const, left: 0, right: 0, minHeight: 180 },
+  mainCard: { position: 'absolute' as const, left: 0, right: 0, top: 0, zIndex: 5 },
+  backdropCard: { position: 'absolute' as const, left: 0, right: 0, top: 0, minHeight: 180 },
   cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   chip: { backgroundColor: '#f0f0f2', borderWidth: 1, borderColor: '#d2d2d7', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, maxWidth: 140 },
   chipText: { fontSize: 11, fontWeight: '600', color: '#3a3a3c' },
