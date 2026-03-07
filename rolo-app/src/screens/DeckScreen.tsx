@@ -95,7 +95,7 @@ export default function DeckScreen() {
     setAnimating(true);
     setFlipProgress(0);
 
-    const durationMs = 580;
+    const durationMs = 600;
     let startFrame: number | null = null;
 
     const step = (frameTime: number) => {
@@ -194,46 +194,49 @@ export default function DeckScreen() {
     );
   }, []);
 
-  // Two-phase animation with slight overlap to prevent flash of empty screen
-  const EXIT_POINT = 0.38;
-  const ENTER_START = 0.30; // enter begins slightly before exit finishes
-  const exitProgress = Math.min(1, flipProgress / EXIT_POINT);
-  const enterProgress = Math.min(1, Math.max(0, (flipProgress - ENTER_START) / (1 - ENTER_START)));
+  // Prototype-matched Rolodex flip animation
+  // Exit (380ms) and enter (550ms) both start simultaneously at t=0, no translateY/scale/opacity
+  const FLIP_TOTAL_MS = 600; // total window — enter finishes at 550ms
+  const EXIT_MS = 380;
+  const ENTER_MS = 550;
 
-  // Exit: aggressive ease-in (snaps away fast)
-  const easeInQuart = (t: number) => t * t * t * t;
-  // Enter: ease-out with a subtle overshoot (spring feel)
-  const easeOutBack = (t: number) => {
-    const c1 = 1.4;
+  const exitRaw = Math.min(1, (flipProgress * FLIP_TOTAL_MS) / EXIT_MS);
+  const enterRaw = Math.min(1, (flipProgress * FLIP_TOTAL_MS) / ENTER_MS);
+
+  // Exit: cubic ease-in — matches prototype cubic-bezier(0.4, 0, 0.8, 0.7)
+  const easeInCubic = (t: number) => t * t * t;
+  // Enter: ease-out with subtle spring overshoot (prototype has 3deg overshoot at 88%)
+  const easeOutSpring = (t: number) => {
+    const c1 = 1.1;
     const c3 = c1 + 1;
     return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
   };
 
-  const exitT = easeInQuart(exitProgress);
-  const enterT = easeOutBack(enterProgress);
+  const exitT = easeInCubic(exitRaw);
+  const enterT = easeOutSpring(enterRaw);
 
-  const outDir = navDir > 0 ? -1 : 1;
-  const inDir = navDir > 0 ? 1 : -1;
+  // navDir=1 (next): pivot at top edge (card folds upward away like a Rolodex page)
+  // navDir=-1 (prev): pivot at bottom edge (card folds downward away)
+  const pivotOrigin = navDir > 0 ? 'center top' : 'center bottom';
+  const exitAngle = navDir > 0 ? -90 * exitT : 90 * exitT;
+  const enterStartAngle = navDir > 0 ? 90 : -90;
+  const enterAngle = enterStartAngle * (1 - enterT);
 
   const outgoingCardStyle = {
     zIndex: 6,
+    transformOrigin: pivotOrigin,
     transform: [
-      { perspective: 1400 },
-      { translateY: outDir * 110 * exitT },
-      { rotateX: `${outDir * -80 * exitT}deg` },
-      { scale: 1 - 0.06 * exitT },
+      { perspective: 900 },
+      { rotateX: `${exitAngle}deg` },
     ],
-    opacity: 1 - exitT,
   };
   const incomingCardStyle = {
     zIndex: 5,
+    transformOrigin: pivotOrigin,
     transform: [
-      { perspective: 1400 },
-      { translateY: inDir * 90 * (1 - enterT) },
-      { rotateX: `${inDir * -70 * (1 - enterT)}deg` },
-      { scale: 0.94 + 0.06 * enterT },
+      { perspective: 900 },
+      { rotateX: `${enterAngle}deg` },
     ],
-    opacity: enterT,
   };
 
   return (
