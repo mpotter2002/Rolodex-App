@@ -215,9 +215,10 @@ export default function DeckScreen() {
   const exitT = easeInCubic(exitRaw);
   const enterT = easeOutSpring(enterRaw);
 
-  // navDir=1 (next): pivot at top edge (card folds upward away like a Rolodex page)
-  // navDir=-1 (prev): pivot at bottom edge (card folds downward away)
-  const pivotOrigin = navDir > 0 ? 'center top' : 'center bottom';
+  // Always pivot at the bottom edge — top of card moves, bottom stays fixed
+  // navDir=1 (swipe up): top goes UP and BACK into screen (rotateX negative)
+  // navDir=-1 (swipe down): top comes DOWN and FORWARD toward viewer (rotateX positive)
+  const pivotOrigin = 'center bottom';
   const exitAngle = navDir > 0 ? -90 * exitT : 90 * exitT;
   const enterStartAngle = navDir > 0 ? 90 : -90;
   const enterAngle = enterStartAngle * (1 - enterT);
