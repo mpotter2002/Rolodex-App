@@ -343,7 +343,7 @@ export default function DeckScreen() {
               {/* Background cards (stacked behind) */}
               {getBackdropCards().map(({ contact, offset }) => {
                 const depth = Math.abs(offset);
-                const yShift = offset * 34;
+                const yShift = offset * 48;
                 const scaleVal = 1 - depth * 0.04;
                 const opacityVal = depth === 1 ? 0.82 : depth === 2 ? 0.50 : depth === 3 ? 0.28 : 0.14;
                 const blurShadow = depth === 1 ? 0.12 : depth === 2 ? 0.07 : 0.03;
@@ -370,13 +370,9 @@ export default function DeckScreen() {
                     ]}
                     pointerEvents="none"
                   >
-                    {/* Only show the tab on depth 2+ — depth-1 card body is mostly hidden behind
-                        the main card so its tab looks like it's floating with no card beneath it */}
-                    {depth > 1 && (
-                      <View style={[s.cardTab, contact.cardColors ? { backgroundColor: contact.cardColors.accentHex } : null]}>
-                        <Text style={s.cardTabText}>{(contact.name || '?').charAt(0).toUpperCase()}</Text>
-                      </View>
-                    )}
+                    <View style={[s.cardTab, contact.cardColors ? { backgroundColor: contact.cardColors.accentHex } : null]}>
+                      <Text style={s.cardTabText}>{(contact.name || '?').charAt(0).toUpperCase()}</Text>
+                    </View>
                   </View>
                 );
               })}
