@@ -232,7 +232,7 @@ export default function DeckScreen() {
   const enterAngle = enterStartAngle * (1 - enterT);
 
   const outgoingCardStyle = {
-    zIndex: 6,
+    zIndex: 5,
     transformOrigin: pivotOrigin,
     transform: [
       { perspective: 900 },
@@ -240,7 +240,7 @@ export default function DeckScreen() {
     ],
   };
   const incomingCardStyle = {
-    zIndex: 5,
+    zIndex: 6,
     transformOrigin: pivotOrigin,
     transform: [
       { perspective: 900 },
