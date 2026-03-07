@@ -229,8 +229,13 @@ export default function DeckScreen() {
   const enterStartAngle = navDir > 0 ? 90 : -90;
   const enterAngle = enterStartAngle * (1 - enterT);
 
+  // Down (navDir=1): old card stays on top, new card comes in from behind
+  // Up (navDir=-1): new card comes in front of the old one
+  const outgoingZ = navDir > 0 ? 6 : 5;
+  const incomingZ = navDir > 0 ? 5 : 6;
+
   const outgoingCardStyle = {
-    zIndex: 5,
+    zIndex: outgoingZ,
     transformOrigin: pivotOrigin,
     transform: [
       { perspective: 900 },
@@ -238,7 +243,7 @@ export default function DeckScreen() {
     ],
   };
   const incomingCardStyle = {
-    zIndex: 6,
+    zIndex: incomingZ,
     transformOrigin: pivotOrigin,
     transform: [
       { perspective: 900 },
