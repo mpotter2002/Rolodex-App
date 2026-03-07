@@ -343,7 +343,7 @@ export default function DeckScreen() {
               {/* Background cards (stacked behind) */}
               {getBackdropCards().map(({ contact, offset }) => {
                 const depth = Math.abs(offset);
-                const yShift = offset * 68;
+                const yShift = offset * 52;
                 const scaleVal = 1 - depth * 0.04;
                 const opacityVal = depth === 1 ? 0.82 : depth === 2 ? 0.50 : depth === 3 ? 0.28 : 0.14;
                 const blurShadow = depth === 1 ? 0.12 : depth === 2 ? 0.07 : 0.03;
@@ -502,7 +502,7 @@ const s = StyleSheet.create({
     gap: 8, minHeight: 180,
   },
   mainCard: { position: 'absolute' as const, left: 0, right: 0, zIndex: 5 },
-  backdropCard: { position: 'absolute' as const, left: 8, right: 8, minHeight: 180 },
+  backdropCard: { position: 'absolute' as const, left: 0, right: 0, minHeight: 180 },
   cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   chip: { backgroundColor: '#f0f0f2', borderWidth: 1, borderColor: '#d2d2d7', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, maxWidth: 140 },
   chipText: { fontSize: 11, fontWeight: '600', color: '#3a3a3c' },
