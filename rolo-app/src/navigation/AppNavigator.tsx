@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text, View, StyleSheet, TouchableOpacity } from 'react-native';
+import { Text, View, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../utils/theme';
 import DeckScreen from '../screens/DeckScreen';
@@ -9,9 +9,63 @@ import SettingsScreen from '../screens/SettingsScreen';
 
 const Tab = createBottomTabNavigator();
 
+function TabItem({ route, isFocused, onPress }: { route: any; isFocused: boolean; onPress: () => void }) {
+  const bgAnim = useRef(new Animated.Value(isFocused ? 1 : 0)).current;
+  const labelAnim = useRef(new Animated.Value(isFocused ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.spring(bgAnim, {
+      toValue: isFocused ? 1 : 0,
+      useNativeDriver: true,
+      tension: 280,
+      friction: 28,
+    }).start();
+    Animated.timing(labelAnim, {
+      toValue: isFocused ? 1 : 0,
+      duration: 180,
+      useNativeDriver: false, // color interpolation needs JS driver
+    }).start();
+  }, [isFocused]);
+
+  const labelColor = labelAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['#4f5b6d', colors.ink],
+  });
+
+  return (
+    <TouchableOpacity onPress={onPress} style={styles.tabBtn} activeOpacity={0.7}>
+      <Animated.View style={[styles.tabBtnBg, { opacity: bgAnim }]} />
+      <Animated.Text style={[styles.tabLabel, { color: labelColor }]}>
+        {route.name === 'Deck' ? 'Rolo' : route.name}
+      </Animated.Text>
+    </TouchableOpacity>
+  );
+}
+
+function PlusButton({ onPress }: { onPress: () => void }) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePress = () => {
+    Animated.sequence([
+      Animated.spring(scaleAnim, { toValue: 0.88, useNativeDriver: true, tension: 400, friction: 10 }),
+      Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, tension: 300, friction: 14 }),
+    ]).start();
+    onPress();
+  };
+
+  return (
+    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+      <TouchableOpacity onPress={handlePress} style={styles.plusBtn} activeOpacity={1}>
+        <Text style={styles.plusText}>+</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
 function TabBar({ state, descriptors, navigation }: any) {
   const insets = useSafeAreaInsets();
   const bottomOffset = Math.max(insets.bottom, 8) + 8;
+
   return (
     <View style={[styles.tabBar, { bottom: bottomOffset }]}>
       {state.routes.map((route: any, index: number) => {
@@ -26,25 +80,10 @@ function TabBar({ state, descriptors, navigation }: any) {
         };
 
         if (isPlus) {
-          return (
-            <TouchableOpacity key={route.key} onPress={onPress} style={styles.plusBtn} activeOpacity={0.8}>
-              <Text style={styles.plusText}>+</Text>
-            </TouchableOpacity>
-          );
+          return <PlusButton key={route.key} onPress={onPress} />;
         }
 
-        return (
-          <TouchableOpacity
-            key={route.key}
-            onPress={onPress}
-            style={[styles.tabBtn, isFocused && styles.tabBtnActive]}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.tabLabel, isFocused && styles.tabLabelActive]}>
-              {route.name === 'Deck' ? 'Rolo' : route.name}
-            </Text>
-          </TouchableOpacity>
-        );
+        return <TabItem key={route.key} route={route} isFocused={isFocused} onPress={onPress} />;
       })}
     </View>
   );
@@ -90,19 +129,16 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'transparent',
   },
-  tabBtnActive: {
+  tabBtnBg: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
     backgroundColor: '#e5e5ea',
+    borderRadius: 14,
   },
   tabLabel: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#4f5b6d',
-  },
-  tabLabelActive: {
-    color: colors.ink,
   },
   plusBtn: {
     width: 72,

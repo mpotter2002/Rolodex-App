@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
-  StyleSheet, Image, ScrollView,
+  StyleSheet, Image, ScrollView, Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -53,6 +53,32 @@ export default function DeckScreen() {
     const used = new Set(contacts.map((c) => c.category).filter(Boolean));
     return CATEGORIES.filter((c) => used.has(c.key));
   }, [contacts]);
+
+  // UI transition animations
+  const contentFade = useRef(new Animated.Value(1)).current;
+  const deckToggleBg = useRef(new Animated.Value(viewMode === 'deck' ? 1 : 0)).current;
+  const listToggleBg = useRef(new Animated.Value(viewMode === 'list' ? 1 : 0)).current;
+  const downBtnScale = useRef(new Animated.Value(1)).current;
+  const upBtnScale = useRef(new Animated.Value(1)).current;
+
+  const switchViewMode = useCallback((mode: 'deck' | 'list') => {
+    if (mode === viewMode) return;
+    // Fade out, swap content, fade back in
+    Animated.timing(contentFade, { toValue: 0, duration: 100, useNativeDriver: true }).start(() => {
+      setViewMode(mode);
+      Animated.timing(contentFade, { toValue: 1, duration: 180, useNativeDriver: true }).start();
+    });
+    Animated.spring(deckToggleBg, { toValue: mode === 'deck' ? 1 : 0, useNativeDriver: true, tension: 280, friction: 26 }).start();
+    Animated.spring(listToggleBg, { toValue: mode === 'list' ? 1 : 0, useNativeDriver: true, tension: 280, friction: 26 }).start();
+  }, [viewMode]);
+
+  const pressBtn = useCallback((scaleAnim: Animated.Value, action: () => void) => {
+    Animated.sequence([
+      Animated.spring(scaleAnim, { toValue: 0.85, useNativeDriver: true, tension: 400, friction: 10 }),
+      Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, tension: 300, friction: 14 }),
+    ]).start();
+    action();
+  }, []);
 
   const animationFrameRef = useRef<number | null>(null);
   const [animating, setAnimating] = useState(false);
@@ -271,17 +297,13 @@ export default function DeckScreen() {
 
       {/* View Toggle */}
       <View style={s.toggle}>
-        <TouchableOpacity
-          style={[s.toggleBtn, viewMode === 'deck' && s.toggleActive]}
-          onPress={() => setViewMode('deck')}
-        >
+        <TouchableOpacity style={s.toggleBtn} onPress={() => switchViewMode('deck')} activeOpacity={0.7}>
+          <Animated.View style={[s.toggleBtnBg, { opacity: deckToggleBg }]} />
           <Ionicons name="albums-outline" size={13} color={viewMode === 'deck' ? colors.ink : colors.muted} style={{ marginRight: 4 }} />
           <Text style={[s.toggleText, viewMode === 'deck' && s.toggleTextActive]}>Deck</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[s.toggleBtn, viewMode === 'list' && s.toggleActive]}
-          onPress={() => setViewMode('list')}
-        >
+        <TouchableOpacity style={s.toggleBtn} onPress={() => switchViewMode('list')} activeOpacity={0.7}>
+          <Animated.View style={[s.toggleBtnBg, { opacity: listToggleBg }]} />
           <Ionicons name="list-outline" size={13} color={viewMode === 'list' ? colors.ink : colors.muted} style={{ marginRight: 4 }} />
           <Text style={[s.toggleText, viewMode === 'list' && s.toggleTextActive]}>List</Text>
         </TouchableOpacity>
@@ -306,7 +328,8 @@ export default function DeckScreen() {
         ))}
       </ScrollView>
 
-      {/* Deck or List */}
+      {/* Deck or List — fades when switching modes */}
+      <Animated.View style={{ flex: 1, opacity: contentFade }}>
       {viewMode === 'deck' ? (
         <View style={s.deckArea}>
           {currentCard ? (
@@ -379,15 +402,19 @@ export default function DeckScreen() {
 
           {/* Deck Controls */}
           <View style={s.deckControls}>
-            <TouchableOpacity style={s.roundBtn} onPress={() => navigate(1)}>
-              <Ionicons name="chevron-down" size={20} color="#fff" />
-            </TouchableOpacity>
+            <Animated.View style={{ transform: [{ scale: downBtnScale }] }}>
+              <TouchableOpacity style={s.roundBtn} onPress={() => pressBtn(downBtnScale, () => navigate(1))}>
+                <Ionicons name="chevron-down" size={20} color="#fff" />
+              </TouchableOpacity>
+            </Animated.View>
             <Text style={s.count}>
               {filtered.length ? `${deckIndex + 1} / ${filtered.length}` : '0 / 0'}
             </Text>
-            <TouchableOpacity style={s.roundBtn} onPress={() => navigate(-1)}>
-              <Ionicons name="chevron-up" size={20} color="#fff" />
-            </TouchableOpacity>
+            <Animated.View style={{ transform: [{ scale: upBtnScale }] }}>
+              <TouchableOpacity style={s.roundBtn} onPress={() => pressBtn(upBtnScale, () => navigate(-1))}>
+                <Ionicons name="chevron-up" size={20} color="#fff" />
+              </TouchableOpacity>
+            </Animated.View>
           </View>
           <Text style={s.swipeHint}>Swipe down for next card, swipe up for previous</Text>
         </View>
@@ -417,6 +444,7 @@ export default function DeckScreen() {
           />
         </View>
       )}
+      </Animated.View>
 
       {/* Contact Detail Sheet */}
       {selectedContact && (
@@ -450,6 +478,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', backgroundColor: colors.bg, borderRadius: 12, padding: 3, gap: 2, marginBottom: 8,
   },
   toggleBtn: { flex: 1, paddingVertical: 7, borderRadius: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
+  toggleBtnBg: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.panel, borderRadius: 10, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
   toggleActive: { backgroundColor: colors.panel, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
   toggleText: { fontSize: 12.5, fontWeight: '700', color: colors.muted },
   toggleTextActive: { color: colors.ink },
