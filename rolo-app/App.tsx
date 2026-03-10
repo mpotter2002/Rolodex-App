@@ -3,25 +3,44 @@ import { View, StyleSheet, Platform, useWindowDimensions } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { AuthProvider, useAuth } from './src/utils/AuthContext';
 import { ContactsProvider } from './src/utils/ContactsContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import AuthFlow from './src/screens/AuthFlow';
 import { isOnboarded } from './src/utils/storage';
 
-function AppContent() {
-  const [authed, setAuthed] = useState(false);
-  const [loading, setLoading] = useState(true);
+/** Needs to live inside AuthProvider so useAuth() works */
+function InnerApp() {
+  const { session, user, loading: authLoading } = useAuth();
+  const [onboarded, setOnboarded] = useState(false);
+  const [onboardLoading, setOnboardLoading] = useState(true);
 
   useEffect(() => {
     isOnboarded().then((done) => {
-      if (done) setAuthed(true);
-      setLoading(false);
+      setOnboarded(done);
+      setOnboardLoading(false);
     });
   }, []);
 
-  if (loading) return null;
+  // Wait for both Supabase session check and AsyncStorage onboard flag
+  if (authLoading || onboardLoading) return null;
 
-  return authed ? <AppNavigator /> : <AuthFlow onComplete={() => setAuthed(true)} />;
+  // Not signed in — show full splash → login/signup → onboarding flow
+  if (!session) {
+    return <AuthFlow onComplete={() => setOnboarded(true)} />;
+  }
+
+  // Signed in but hasn't seen onboarding (e.g. signed in on a new device)
+  if (!onboarded) {
+    return <AuthFlow startAtOnboarding onComplete={() => setOnboarded(true)} />;
+  }
+
+  // Signed in + onboarded — show the main app, scoped to this user's contacts
+  return (
+    <ContactsProvider userId={user?.id}>
+      <AppNavigator />
+    </ContactsProvider>
+  );
 }
 
 export default function App() {
@@ -30,12 +49,12 @@ export default function App() {
 
   const content = (
     <SafeAreaProvider>
-      <ContactsProvider>
+      <AuthProvider>
         <NavigationContainer>
           <StatusBar style="dark" />
-          <AppContent />
+          <InnerApp />
         </NavigationContainer>
-      </ContactsProvider>
+      </AuthProvider>
     </SafeAreaProvider>
   );
 

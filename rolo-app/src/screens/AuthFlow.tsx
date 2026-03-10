@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, Image, StyleSheet, Dimensions, ScrollView,
+  View, Text, TextInput, TouchableOpacity, Image, StyleSheet,
+  ScrollView, ActivityIndicator, Alert,
 } from 'react-native';
 import { AntDesign } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../utils/theme';
 import { setOnboarded } from '../utils/storage';
+import { supabase } from '../utils/supabase';
 
 type Screen = 'splash' | 'login' | 'signup' | 'forgot' | 'onboarding';
 
@@ -16,21 +18,99 @@ const ONBOARDING_PAGES = [
   { icon: '🚀', title: "You're All Set", desc: 'Start by scanning your first card or adding a contact manually. Your Rolo is ready to go!' },
 ];
 
-export default function AuthFlow({ onComplete }: { onComplete: () => void }) {
+export default function AuthFlow({ onComplete, startAtOnboarding = false }: { onComplete: () => void; startAtOnboarding?: boolean }) {
   const insets = useSafeAreaInsets();
-  const [screen, setScreen] = useState<Screen>('splash');
+  const [screen, setScreen] = useState<Screen>(startAtOnboarding ? 'onboarding' : 'splash');
   const [onboardingIdx, setOnboardingIdx] = useState(0);
-  const [forgotSent, setForgotSent] = useState(false);
 
-  function dismissAuth() {
-    setScreen('onboarding');
-    setOnboardingIdx(0);
-  }
+  // form state
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotSent, setForgotSent] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // ─── helpers ───────────────────────────────────────────────────────────────
 
   async function finishOnboarding() {
     await setOnboarded();
     onComplete();
   }
+
+  function resetForm() {
+    setFullName('');
+    setEmail('');
+    setPassword('');
+    setForgotEmail('');
+    setForgotSent(false);
+    setLoading(false);
+  }
+
+  function goTo(s: Screen) {
+    resetForm();
+    setScreen(s);
+  }
+
+  // ─── auth actions ──────────────────────────────────────────────────────────
+
+  async function handleSignUp() {
+    if (!fullName.trim()) { Alert.alert('Name required', 'Please enter your full name.'); return; }
+    if (!email.trim())    { Alert.alert('Email required', 'Please enter your email address.'); return; }
+    if (password.length < 8) { Alert.alert('Weak password', 'Password must be at least 8 characters.'); return; }
+
+    setLoading(true);
+    const { error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: { data: { full_name: fullName.trim() } },
+    });
+    setLoading(false);
+
+    if (error) {
+      Alert.alert('Sign up failed', error.message);
+    } else {
+      // Supabase sends a confirmation email. Move to onboarding optimistically.
+      // The session will be set automatically once email is confirmed (or if
+      // email confirmation is disabled in your Supabase project settings).
+      setScreen('onboarding');
+      setOnboardingIdx(0);
+    }
+  }
+
+  async function handleSignIn() {
+    if (!email.trim() || !password) { Alert.alert('Missing fields', 'Please enter your email and password.'); return; }
+
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+    setLoading(false);
+
+    if (error) {
+      Alert.alert('Sign in failed', error.message);
+    } else {
+      setScreen('onboarding');
+      setOnboardingIdx(0);
+    }
+  }
+
+  async function handleForgotPassword() {
+    if (!forgotEmail.trim()) { Alert.alert('Email required', 'Please enter your email address.'); return; }
+
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail.trim());
+    setLoading(false);
+
+    if (error) {
+      Alert.alert('Error', error.message);
+    } else {
+      setForgotSent(true);
+    }
+  }
+
+  // ─── onboarding ────────────────────────────────────────────────────────────
 
   if (screen === 'onboarding') {
     const page = ONBOARDING_PAGES[onboardingIdx];
@@ -48,7 +128,10 @@ export default function AuthFlow({ onComplete }: { onComplete: () => void }) {
           ))}
         </View>
         <View style={[s.authActions, { paddingBottom: insets.bottom + 16 }]}>
-          <TouchableOpacity style={s.btnBlack} onPress={() => isLast ? finishOnboarding() : setOnboardingIdx(onboardingIdx + 1)}>
+          <TouchableOpacity
+            style={s.btnBlack}
+            onPress={() => isLast ? finishOnboarding() : setOnboardingIdx(onboardingIdx + 1)}
+          >
             <Text style={s.btnBlackText}>{isLast ? 'Get Started' : 'Next'}</Text>
           </TouchableOpacity>
           {!isLast && (
@@ -61,10 +144,12 @@ export default function AuthFlow({ onComplete }: { onComplete: () => void }) {
     );
   }
 
+  // ─── forgot password ────────────────────────────────────────────────────────
+
   if (screen === 'forgot') {
     return (
       <View style={[s.container, { paddingTop: insets.top }]}>
-        <TouchableOpacity style={s.backBtn} onPress={() => { setScreen('login'); setForgotSent(false); }}>
+        <TouchableOpacity style={s.backBtn} onPress={() => goTo('login')}>
           <Text style={s.backText}>← Back</Text>
         </TouchableOpacity>
         <View style={s.hero}>
@@ -77,9 +162,9 @@ export default function AuthFlow({ onComplete }: { onComplete: () => void }) {
             <View style={s.successBox}>
               <Text style={{ fontSize: 48 }}>✉️</Text>
               <Text style={s.successTitle}>Check your email</Text>
-              <Text style={s.successDesc}>We sent a password reset link to your email.</Text>
+              <Text style={s.successDesc}>We sent a password reset link to {forgotEmail}.</Text>
             </View>
-            <TouchableOpacity style={s.btnBlack} onPress={() => { setScreen('login'); setForgotSent(false); }}>
+            <TouchableOpacity style={s.btnBlack} onPress={() => goTo('login')}>
               <Text style={s.btnBlackText}>Back to Sign In</Text>
             </TouchableOpacity>
           </View>
@@ -87,25 +172,41 @@ export default function AuthFlow({ onComplete }: { onComplete: () => void }) {
           <View style={s.authBody}>
             <View style={s.fieldWrap}>
               <Text style={s.fieldLabel}>EMAIL</Text>
-              <TextInput style={s.input} placeholder="you@email.com" placeholderTextColor="#b0b0b5" keyboardType="email-address" autoCapitalize="none" />
+              <TextInput
+                style={s.input}
+                placeholder="you@email.com"
+                placeholderTextColor="#b0b0b5"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={forgotEmail}
+                onChangeText={setForgotEmail}
+              />
             </View>
-            <TouchableOpacity style={s.btnBlack} onPress={() => setForgotSent(true)}>
-              <Text style={s.btnBlackText}>Send Reset Link</Text>
+            <TouchableOpacity style={[s.btnBlack, loading && s.btnDisabled]} onPress={handleForgotPassword} disabled={loading}>
+              {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnBlackText}>Send Reset Link</Text>}
             </TouchableOpacity>
           </View>
         )}
         <View style={s.switchRow}>
           <Text style={s.switchText}>Remember your password? </Text>
-          <TouchableOpacity onPress={() => { setScreen('login'); setForgotSent(false); }}><Text style={s.switchLink}>Sign in</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => goTo('login')}><Text style={s.switchLink}>Sign in</Text></TouchableOpacity>
         </View>
       </View>
     );
   }
 
+  // ─── sign in ────────────────────────────────────────────────────────────────
+
   if (screen === 'login') {
     return (
-      <ScrollView style={[s.container, { paddingTop: insets.top }]} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
-        <TouchableOpacity style={s.backBtn} onPress={() => setScreen('splash')}><Text style={s.backText}>← Back</Text></TouchableOpacity>
+      <ScrollView
+        style={[s.container, { paddingTop: insets.top }]}
+        contentContainerStyle={{ flexGrow: 1 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        <TouchableOpacity style={s.backBtn} onPress={() => goTo('splash')}>
+          <Text style={s.backText}>← Back</Text>
+        </TouchableOpacity>
         <View style={s.hero}>
           <Image source={require('../../assets/rolo-logo.png')} style={s.heroLogo} />
           <Text style={s.authTitle}>Welcome back.</Text>
@@ -114,67 +215,133 @@ export default function AuthFlow({ onComplete }: { onComplete: () => void }) {
         <View style={s.authBody}>
           <View style={s.fieldWrap}>
             <Text style={s.fieldLabel}>EMAIL</Text>
-            <TextInput style={s.input} placeholder="you@email.com" placeholderTextColor="#b0b0b5" keyboardType="email-address" autoCapitalize="none" />
+            <TextInput
+              style={s.input}
+              placeholder="you@email.com"
+              placeholderTextColor="#b0b0b5"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              value={email}
+              onChangeText={setEmail}
+            />
           </View>
           <View style={s.fieldWrap}>
             <Text style={s.fieldLabel}>PASSWORD</Text>
-            <TextInput style={s.input} placeholder="••••••••" placeholderTextColor="#b0b0b5" secureTextEntry />
+            <TextInput
+              style={s.input}
+              placeholder="••••••••"
+              placeholderTextColor="#b0b0b5"
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+            />
           </View>
-          <TouchableOpacity onPress={() => setScreen('forgot')} style={{ alignSelf: 'flex-end' }}>
+          <TouchableOpacity onPress={() => goTo('forgot')} style={{ alignSelf: 'flex-end' }}>
             <Text style={s.forgotText}>Forgot password?</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.btnBlack} onPress={dismissAuth}><Text style={s.btnBlackText}>Sign In</Text></TouchableOpacity>
-          <View style={s.divider}><View style={s.dividerLine} /><Text style={s.dividerText}>or continue with</Text><View style={s.dividerLine} /></View>
-          <TouchableOpacity style={s.socialBtn} onPress={dismissAuth}>
+          <TouchableOpacity style={[s.btnBlack, loading && s.btnDisabled]} onPress={handleSignIn} disabled={loading}>
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnBlackText}>Sign In</Text>}
+          </TouchableOpacity>
+          <View style={s.divider}>
+            <View style={s.dividerLine} />
+            <Text style={s.dividerText}>or continue with</Text>
+            <View style={s.dividerLine} />
+          </View>
+          <TouchableOpacity style={s.socialBtn} onPress={() => Alert.alert('Coming soon', 'Apple Sign-In will be available in the next build.')}>
             <AntDesign name="apple1" size={17} color="#1d1d1f" style={{ marginRight: 8 }} />
             <Text style={s.socialText}>Sign in with Apple</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.socialBtn} onPress={dismissAuth}>
+          <TouchableOpacity style={s.socialBtn} onPress={() => Alert.alert('Coming soon', 'Google Sign-In will be available in the next build.')}>
             <AntDesign name="google" size={16} color="#DB4437" style={{ marginRight: 8 }} />
             <Text style={s.socialText}>Sign in with Google</Text>
           </TouchableOpacity>
         </View>
         <View style={s.switchRow}>
           <Text style={s.switchText}>Don't have an account? </Text>
-          <TouchableOpacity onPress={() => setScreen('signup')}><Text style={s.switchLink}>Create one</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => goTo('signup')}><Text style={s.switchLink}>Create one</Text></TouchableOpacity>
         </View>
       </ScrollView>
     );
   }
 
+  // ─── sign up ────────────────────────────────────────────────────────────────
+
   if (screen === 'signup') {
     return (
-      <ScrollView style={[s.container, { paddingTop: insets.top }]} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
-        <TouchableOpacity style={s.backBtn} onPress={() => setScreen('splash')}><Text style={s.backText}>← Back</Text></TouchableOpacity>
+      <ScrollView
+        style={[s.container, { paddingTop: insets.top }]}
+        contentContainerStyle={{ flexGrow: 1 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        <TouchableOpacity style={s.backBtn} onPress={() => goTo('splash')}>
+          <Text style={s.backText}>← Back</Text>
+        </TouchableOpacity>
         <View style={s.hero}>
           <Image source={require('../../assets/rolo-logo.png')} style={s.heroLogo} />
           <Text style={s.authTitle}>Create your account.</Text>
           <Text style={s.authSubtitle}>Start organizing your contacts in seconds.</Text>
         </View>
         <View style={s.authBody}>
-          <View style={s.fieldWrap}><Text style={s.fieldLabel}>FULL NAME</Text><TextInput style={s.input} placeholder="Michael Potter" placeholderTextColor="#b0b0b5" /></View>
-          <View style={s.fieldWrap}><Text style={s.fieldLabel}>EMAIL</Text><TextInput style={s.input} placeholder="you@email.com" placeholderTextColor="#b0b0b5" keyboardType="email-address" autoCapitalize="none" /></View>
-          <View style={s.fieldWrap}><Text style={s.fieldLabel}>PASSWORD</Text><TextInput style={s.input} placeholder="Min. 8 characters" placeholderTextColor="#b0b0b5" secureTextEntry /></View>
-          <TouchableOpacity style={s.btnBlack} onPress={dismissAuth}><Text style={s.btnBlackText}>Create Account</Text></TouchableOpacity>
-          <View style={s.divider}><View style={s.dividerLine} /><Text style={s.dividerText}>or sign up with</Text><View style={s.dividerLine} /></View>
-          <TouchableOpacity style={s.socialBtn} onPress={dismissAuth}>
+          <View style={s.fieldWrap}>
+            <Text style={s.fieldLabel}>FULL NAME</Text>
+            <TextInput
+              style={s.input}
+              placeholder="Your Name"
+              placeholderTextColor="#b0b0b5"
+              value={fullName}
+              onChangeText={setFullName}
+            />
+          </View>
+          <View style={s.fieldWrap}>
+            <Text style={s.fieldLabel}>EMAIL</Text>
+            <TextInput
+              style={s.input}
+              placeholder="you@email.com"
+              placeholderTextColor="#b0b0b5"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              value={email}
+              onChangeText={setEmail}
+            />
+          </View>
+          <View style={s.fieldWrap}>
+            <Text style={s.fieldLabel}>PASSWORD</Text>
+            <TextInput
+              style={s.input}
+              placeholder="Min. 8 characters"
+              placeholderTextColor="#b0b0b5"
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+            />
+          </View>
+          <TouchableOpacity style={[s.btnBlack, loading && s.btnDisabled]} onPress={handleSignUp} disabled={loading}>
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnBlackText}>Create Account</Text>}
+          </TouchableOpacity>
+          <View style={s.divider}>
+            <View style={s.dividerLine} />
+            <Text style={s.dividerText}>or sign up with</Text>
+            <View style={s.dividerLine} />
+          </View>
+          <TouchableOpacity style={s.socialBtn} onPress={() => Alert.alert('Coming soon', 'Apple Sign-In will be available in the next build.')}>
             <AntDesign name="apple1" size={17} color="#1d1d1f" style={{ marginRight: 8 }} />
             <Text style={s.socialText}>Sign up with Apple</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.socialBtn} onPress={dismissAuth}>
+          <TouchableOpacity style={s.socialBtn} onPress={() => Alert.alert('Coming soon', 'Google Sign-In will be available in the next build.')}>
             <AntDesign name="google" size={16} color="#DB4437" style={{ marginRight: 8 }} />
             <Text style={s.socialText}>Sign up with Google</Text>
           </TouchableOpacity>
         </View>
         <View style={s.switchRow}>
           <Text style={s.switchText}>Already have an account? </Text>
-          <TouchableOpacity onPress={() => setScreen('login')}><Text style={s.switchLink}>Sign in</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => goTo('login')}><Text style={s.switchLink}>Sign in</Text></TouchableOpacity>
         </View>
       </ScrollView>
     );
   }
 
-  // Splash
+  // ─── splash ──────────────────────────────────────────────────────────────────
+
   return (
     <View style={[s.container, { paddingTop: insets.top }]}>
       <View style={s.splashCenter}>
@@ -183,10 +350,10 @@ export default function AuthFlow({ onComplete }: { onComplete: () => void }) {
         <Text style={s.splashTagline}>Your contacts, beautifully organized.</Text>
       </View>
       <View style={[s.authActions, { paddingBottom: insets.bottom + 16 }]}>
-        <TouchableOpacity style={s.btnBlack} onPress={() => setScreen('signup')}>
+        <TouchableOpacity style={s.btnBlack} onPress={() => goTo('signup')}>
           <Text style={s.btnBlackText}>Create an Account</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={s.btnGhost} onPress={() => setScreen('login')}>
+        <TouchableOpacity style={s.btnGhost} onPress={() => goTo('login')}>
           <Text style={s.btnGhostText}>Sign In</Text>
         </TouchableOpacity>
         <Text style={s.termsText}>By continuing you agree to our Terms of Service and Privacy Policy.</Text>
@@ -206,6 +373,7 @@ const s = StyleSheet.create({
   btnBlackText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   btnGhost: { borderWidth: 1.5, borderColor: colors.line, borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
   btnGhostText: { color: colors.ink, fontSize: 15, fontWeight: '600' },
+  btnDisabled: { opacity: 0.6 },
   termsText: { fontSize: 11, color: colors.muted, textAlign: 'center', opacity: 0.6, lineHeight: 16, marginTop: 6 },
   backBtn: { paddingHorizontal: 22, paddingTop: 16 },
   backText: { color: colors.muted, fontSize: 14, fontWeight: '600' },
