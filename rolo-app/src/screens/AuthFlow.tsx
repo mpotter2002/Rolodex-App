@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, Image, StyleSheet,
-  ScrollView, ActivityIndicator, Alert,
+  ScrollView, ActivityIndicator,
 } from 'react-native';
 import { AntDesign } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,7 +9,7 @@ import { colors } from '../utils/theme';
 import { setOnboarded } from '../utils/storage';
 import { supabase } from '../utils/supabase';
 
-type Screen = 'splash' | 'login' | 'signup' | 'forgot' | 'onboarding';
+type Screen = 'splash' | 'login' | 'signup' | 'forgot' | 'onboarding' | 'confirm';
 
 const ONBOARDING_PAGES = [
   { icon: '📇', title: 'Welcome to Rolo', desc: 'Your digital Rolodex. Scan, save, and organize all your business contacts in one place.' },
@@ -30,12 +30,20 @@ export default function AuthFlow({ onComplete, startAtOnboarding = false }: { on
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotSent, setForgotSent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   // ─── helpers ───────────────────────────────────────────────────────────────
 
   async function finishOnboarding() {
     await setOnboarded();
-    onComplete();
+    // Check if a session already exists (e.g. email confirmation disabled)
+    const { data } = await supabase.auth.getSession();
+    if (data.session) {
+      onComplete();
+    } else {
+      // Email confirmation required — park on confirm screen
+      setScreen('confirm');
+    }
   }
 
   function resetForm() {
@@ -45,6 +53,7 @@ export default function AuthFlow({ onComplete, startAtOnboarding = false }: { on
     setForgotEmail('');
     setForgotSent(false);
     setLoading(false);
+    setErrorMsg('');
   }
 
   function goTo(s: Screen) {
@@ -55,9 +64,10 @@ export default function AuthFlow({ onComplete, startAtOnboarding = false }: { on
   // ─── auth actions ──────────────────────────────────────────────────────────
 
   async function handleSignUp() {
-    if (!fullName.trim()) { Alert.alert('Name required', 'Please enter your full name.'); return; }
-    if (!email.trim())    { Alert.alert('Email required', 'Please enter your email address.'); return; }
-    if (password.length < 8) { Alert.alert('Weak password', 'Password must be at least 8 characters.'); return; }
+    setErrorMsg('');
+    if (!fullName.trim()) { setErrorMsg('Please enter your full name.'); return; }
+    if (!email.trim())    { setErrorMsg('Please enter your email address.'); return; }
+    if (password.length < 8) { setErrorMsg('Password must be at least 8 characters.'); return; }
 
     setLoading(true);
     const { error } = await supabase.auth.signUp({
@@ -68,18 +78,16 @@ export default function AuthFlow({ onComplete, startAtOnboarding = false }: { on
     setLoading(false);
 
     if (error) {
-      Alert.alert('Sign up failed', error.message);
+      setErrorMsg(error.message);
     } else {
-      // Supabase sends a confirmation email. Move to onboarding optimistically.
-      // The session will be set automatically once email is confirmed (or if
-      // email confirmation is disabled in your Supabase project settings).
       setScreen('onboarding');
       setOnboardingIdx(0);
     }
   }
 
   async function handleSignIn() {
-    if (!email.trim() || !password) { Alert.alert('Missing fields', 'Please enter your email and password.'); return; }
+    setErrorMsg('');
+    if (!email.trim() || !password) { setErrorMsg('Please enter your email and password.'); return; }
 
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({
@@ -89,7 +97,7 @@ export default function AuthFlow({ onComplete, startAtOnboarding = false }: { on
     setLoading(false);
 
     if (error) {
-      Alert.alert('Sign in failed', error.message);
+      setErrorMsg(error.message);
     } else {
       setScreen('onboarding');
       setOnboardingIdx(0);
@@ -108,6 +116,30 @@ export default function AuthFlow({ onComplete, startAtOnboarding = false }: { on
     } else {
       setForgotSent(true);
     }
+  }
+
+  // ─── confirm email ─────────────────────────────────────────────────────────
+
+  if (screen === 'confirm') {
+    return (
+      <View style={[s.container, { paddingTop: insets.top, paddingBottom: insets.bottom + 16 }]}>
+        <View style={s.onboardingBody}>
+          <Text style={s.onboardingIcon}>✉️</Text>
+          <Text style={s.onboardingTitle}>Check your email</Text>
+          <Text style={s.onboardingDesc}>
+            We sent a confirmation link to {email || 'your email'}. Click it to activate your account, then sign in below.
+          </Text>
+        </View>
+        <View style={[s.authActions]}>
+          <TouchableOpacity style={s.btnBlack} onPress={() => goTo('login')}>
+            <Text style={s.btnBlackText}>Sign In</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => goTo('signup')}>
+            <Text style={s.skipText}>Use a different email</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
   }
 
   // ─── onboarding ────────────────────────────────────────────────────────────
@@ -239,6 +271,7 @@ export default function AuthFlow({ onComplete, startAtOnboarding = false }: { on
           <TouchableOpacity onPress={() => goTo('forgot')} style={{ alignSelf: 'flex-end' }}>
             <Text style={s.forgotText}>Forgot password?</Text>
           </TouchableOpacity>
+          {!!errorMsg && <Text style={s.errorText}>{errorMsg}</Text>}
           <TouchableOpacity style={[s.btnBlack, loading && s.btnDisabled]} onPress={handleSignIn} disabled={loading}>
             {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnBlackText}>Sign In</Text>}
           </TouchableOpacity>
@@ -315,6 +348,7 @@ export default function AuthFlow({ onComplete, startAtOnboarding = false }: { on
               onChangeText={setPassword}
             />
           </View>
+          {!!errorMsg && <Text style={s.errorText}>{errorMsg}</Text>}
           <TouchableOpacity style={[s.btnBlack, loading && s.btnDisabled]} onPress={handleSignUp} disabled={loading}>
             {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnBlackText}>Create Account</Text>}
           </TouchableOpacity>
@@ -386,6 +420,7 @@ const s = StyleSheet.create({
   fieldLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.7, color: colors.muted },
   input: { borderWidth: 1.5, borderColor: colors.line, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, fontSize: 15, fontWeight: '500', color: colors.ink, backgroundColor: colors.bg },
   forgotText: { color: colors.muted, fontSize: 12.5, fontWeight: '600' },
+  errorText: { color: '#d93025', fontSize: 13, fontWeight: '600', textAlign: 'center' },
   divider: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   dividerLine: { flex: 1, height: 1, backgroundColor: colors.line },
   dividerText: { color: colors.muted, fontSize: 12, fontWeight: '600' },

@@ -64,6 +64,11 @@ export default function DeckScreen() {
   const listToggleBg = useRef(new Animated.Value(viewMode === 'list' ? 1 : 0)).current;
   const downBtnScale = useRef(new Animated.Value(1)).current;
   const upBtnScale = useRef(new Animated.Value(1)).current;
+  // Counter animation
+  const countY = useRef(new Animated.Value(0)).current;
+  const countOpacity = useRef(new Animated.Value(1)).current;
+  const [displayIndex, setDisplayIndex] = useState(0);
+  const prevDeckIndexRef = useRef<number | null>(null);
 
   const switchViewMode = useCallback((mode: 'deck' | 'list') => {
     if (mode === viewMode) return;
@@ -109,6 +114,29 @@ export default function DeckScreen() {
       }
     };
   }, []);
+
+  // Counter slide animation when deck index changes
+  useEffect(() => {
+    if (prevDeckIndexRef.current === null) {
+      prevDeckIndexRef.current = deckIndex;
+      setDisplayIndex(deckIndex);
+      return;
+    }
+    prevDeckIndexRef.current = deckIndex;
+    const slideOut = navDir * -14;
+    const slideIn = navDir * 14;
+    Animated.parallel([
+      Animated.timing(countY, { toValue: slideOut, duration: 100, useNativeDriver: true }),
+      Animated.timing(countOpacity, { toValue: 0, duration: 80, useNativeDriver: true }),
+    ]).start(() => {
+      setDisplayIndex(deckIndex);
+      countY.setValue(slideIn);
+      Animated.parallel([
+        Animated.timing(countY, { toValue: 0, duration: 200, useNativeDriver: true }),
+        Animated.timing(countOpacity, { toValue: 1, duration: 180, useNativeDriver: true }),
+      ]).start();
+    });
+  }, [deckIndex]);
 
   const navigate = useCallback((dir: number) => {
     if (!filtered.length || animating) return;
@@ -285,59 +313,60 @@ export default function DeckScreen() {
 
   return (
     <View style={[s.container, { paddingTop: insets.top + 8 }]}>
-      {/* Header */}
-      <View style={s.header}>
-        <Image source={require('../../assets/rolo-logo.png')} style={s.logo} />
-        <Text style={s.wordmark}>Rolo</Text>
-      </View>
-      <Text style={s.summary}>{contacts.length} contact{contacts.length === 1 ? '' : 's'} saved</Text>
+      {/* All header UI — high zIndex so deck cards never bleed over it */}
+      <View style={{ zIndex: 30, backgroundColor: colors.panel }}>
+        {/* Header */}
+        <View style={s.header}>
+          <Image source={require('../../assets/rolo-logo.png')} style={s.logo} />
+          <Text style={s.wordmark}>Rolo</Text>
+        </View>
+        <Text style={s.summary}>{contacts.length} contact{contacts.length === 1 ? '' : 's'} saved</Text>
 
-      {/* Search */}
-      <TextInput
-        style={s.search}
-        placeholder="Search name, company, email..."
-        placeholderTextColor={colors.muted}
-        value={search}
-        onChangeText={setSearch}
-      />
+        {/* Search */}
+        <TextInput
+          style={s.search}
+          placeholder="Search name, company, email..."
+          placeholderTextColor={colors.muted}
+          value={search}
+          onChangeText={setSearch}
+        />
 
-      {/* View Toggle */}
-      <View style={s.toggle}>
-        <TouchableOpacity style={s.toggleBtn} onPress={() => switchViewMode('deck')} activeOpacity={0.7}>
-          <Animated.View style={[s.toggleBtnBg, { opacity: deckToggleBg }]} />
-          <Ionicons name="albums-outline" size={13} color={viewMode === 'deck' ? colors.ink : colors.muted} style={{ marginRight: 4 }} />
-          <Text style={[s.toggleText, viewMode === 'deck' && s.toggleTextActive]}>Deck</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={s.toggleBtn} onPress={() => switchViewMode('list')} activeOpacity={0.7}>
-          <Animated.View style={[s.toggleBtnBg, { opacity: listToggleBg }]} />
-          <Ionicons name="list-outline" size={13} color={viewMode === 'list' ? colors.ink : colors.muted} style={{ marginRight: 4 }} />
-          <Text style={[s.toggleText, viewMode === 'list' && s.toggleTextActive]}>List</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Category Filter — kept outside the content fade so pills stay fully opaque */}
-      <View style={{ backgroundColor: colors.panel }}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filterBar} contentContainerStyle={s.filterContent}>
-        <TouchableOpacity
-          style={[s.pill, !activeCategory && s.pillActive]}
-          onPress={() => { setActiveCategory(''); setDeckIndex(0); }}
-        >
-          <Text style={[s.pillText, !activeCategory && s.pillTextActive]}>All</Text>
-        </TouchableOpacity>
-        {usedCategories.map((cat) => (
-          <TouchableOpacity
-            key={cat.key}
-            style={[s.pill, activeCategory === cat.key && s.pillActive]}
-            onPress={() => { setActiveCategory(cat.key); setDeckIndex(0); }}
-          >
-            <Text style={[s.pillText, activeCategory === cat.key && s.pillTextActive]}>{cat.label}</Text>
+        {/* View Toggle */}
+        <View style={s.toggle}>
+          <TouchableOpacity style={s.toggleBtn} onPress={() => switchViewMode('deck')} activeOpacity={0.7}>
+            <Animated.View style={[s.toggleBtnBg, { opacity: deckToggleBg }]} />
+            <Ionicons name="albums-outline" size={13} color={viewMode === 'deck' ? colors.ink : colors.muted} style={{ marginRight: 4 }} />
+            <Text style={[s.toggleText, viewMode === 'deck' && s.toggleTextActive]}>Deck</Text>
           </TouchableOpacity>
-        ))}
-      </ScrollView>
+          <TouchableOpacity style={s.toggleBtn} onPress={() => switchViewMode('list')} activeOpacity={0.7}>
+            <Animated.View style={[s.toggleBtnBg, { opacity: listToggleBg }]} />
+            <Ionicons name="list-outline" size={13} color={viewMode === 'list' ? colors.ink : colors.muted} style={{ marginRight: 4 }} />
+            <Text style={[s.toggleText, viewMode === 'list' && s.toggleTextActive]}>List</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Category Filter */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filterBar} contentContainerStyle={s.filterContent}>
+          <TouchableOpacity
+            style={[s.pill, !activeCategory && s.pillActive]}
+            onPress={() => { setActiveCategory(''); setDeckIndex(0); }}
+          >
+            <Text style={[s.pillText, !activeCategory && s.pillTextActive]}>All</Text>
+          </TouchableOpacity>
+          {usedCategories.map((cat) => (
+            <TouchableOpacity
+              key={cat.key}
+              style={[s.pill, activeCategory === cat.key && s.pillActive]}
+              onPress={() => { setActiveCategory(cat.key); setDeckIndex(0); }}
+            >
+              <Text style={[s.pillText, activeCategory === cat.key && s.pillTextActive]}>{cat.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
 
-      {/* Deck or List — fades when switching modes */}
-      <Animated.View style={{ flex: 1, opacity: contentFade, backgroundColor: colors.panel }}>
+      {/* Deck or List — fades when switching modes, zIndex below header */}
+      <Animated.View style={{ flex: 1, opacity: contentFade, backgroundColor: colors.panel, zIndex: 1 }}>
       {viewMode === 'deck' ? (
         <View style={s.deckArea}>
           {currentCard ? (
@@ -349,23 +378,25 @@ export default function DeckScreen() {
               {/* Background cards (stacked behind) */}
               {getBackdropCards().map(({ contact, offset }) => {
                 const depth = Math.abs(offset);
-                // Base shift per depth level; extra nudge on depth-1 so the closest tab
-                // clears the main card's tab, then uniform 48px gaps after that
                 const baseGap = 42;
-                const firstPad = 38; // extra clearance so the closest tab matches the even gap
+                const firstPad = 38;
                 const yShift = depth === 1
-                  ? -(baseGap + firstPad)          // -66px  → closest card
-                  : -(baseGap + firstPad + baseGap * (depth - 1)); // -114, -162, -210
+                  ? -(baseGap + firstPad)
+                  : -(baseGap + firstPad + baseGap * (depth - 1));
                 const scaleVal = 1 - depth * 0.04;
                 const opacityVal = depth === 1 ? 0.82 : depth === 2 ? 0.50 : depth === 3 ? 0.28 : 0.14;
                 const blurShadow = depth === 1 ? 0.12 : depth === 2 ? 0.07 : 0.03;
+                // Queue advance: each card moves one slot forward (42px toward main card)
+                // with an ease-out curve so it settles smoothly
+                const easeOut = animating ? 1 - Math.pow(1 - flipProgress, 2) : 0;
+                const advanceShift = easeOut * 42 * navDir;
                 return (
                   <View
                     key={`bg-${contact.id}-${offset}`}
                     style={[
                       s.backdropCard,
                       {
-                        transform: [{ translateY: yShift }, { scale: scaleVal }],
+                        transform: [{ translateY: yShift + advanceShift }, { scale: scaleVal }],
                         opacity: opacityVal,
                         zIndex: 4 - depth,
                         backgroundColor: '#fff',
@@ -385,6 +416,18 @@ export default function DeckScreen() {
                     <View style={[s.cardTab, contact.cardColors ? { backgroundColor: contact.cardColors.accentHex } : null]}>
                       <Text style={s.cardTabText}>{(contact.name || '?').charAt(0).toUpperCase()}</Text>
                     </View>
+                    {depth <= 2 && (
+                      <View style={{ marginTop: 10, gap: 4 }}>
+                        <Text style={{ fontSize: depth === 1 ? 13.5 : 12, fontWeight: '800', color: '#1f2a39' }} numberOfLines={1}>
+                          {contact.name || 'Unnamed'}
+                        </Text>
+                        {depth === 1 && (contact.title || contact.company) ? (
+                          <Text style={{ fontSize: 12, color: '#5a6a7a' }} numberOfLines={1}>
+                            {[contact.title, contact.company].filter(Boolean).join(' · ')}
+                          </Text>
+                        ) : null}
+                      </View>
+                    )}
                   </View>
                 );
               })}
@@ -429,9 +472,14 @@ export default function DeckScreen() {
                 <Ionicons name="chevron-down" size={20} color="#fff" />
               </TouchableOpacity>
             </Animated.View>
-            <Text style={s.count}>
-              {filtered.length ? `${deckIndex + 1} / ${filtered.length}` : '0 / 0'}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', minWidth: 84, justifyContent: 'center' }}>
+              <View style={{ height: 18, overflow: 'hidden' as const, justifyContent: 'center' }}>
+                <Animated.Text style={[s.count, { lineHeight: 18, transform: [{ translateY: countY }], opacity: countOpacity }]}>
+                  {filtered.length ? `${displayIndex + 1}` : '0'}
+                </Animated.Text>
+              </View>
+              <Text style={[s.count, { lineHeight: 18 }]}>{filtered.length ? ` / ${filtered.length}` : ' / 0'}</Text>
+            </View>
             <Animated.View style={{ transform: [{ scale: upBtnScale }] }}>
               <TouchableOpacity style={s.roundBtn} onPress={() => pressBtn(upBtnScale, () => navigate(-1))}>
                 <Ionicons name="chevron-up" size={20} color="#fff" />
@@ -511,15 +559,15 @@ const s = StyleSheet.create({
   pillText: { fontSize: 13.5, fontWeight: '600', color: colors.muted },
   pillTextActive: { color: '#fff' },
   // Deck
-  deckArea: { flex: 1, justifyContent: 'center', overflow: 'hidden' as const },
-  deckViewport: { justifyContent: 'center' as const, position: 'relative' as const, overflow: 'visible' as const, marginTop: 8, marginBottom: 4 },
+  deckArea: { flex: 1, justifyContent: 'center', overflow: 'visible' as const },
+  deckViewport: { justifyContent: 'center' as const, position: 'relative' as const, overflow: 'visible' as const, marginTop: 8, marginBottom: 4, paddingHorizontal: 10 },
   cardAnchor: { height: 180, width: '100%' as unknown as number, position: 'relative' as const, overflow: 'visible' as const },
   rolocard: {
     backgroundColor: '#fff', borderWidth: 1, borderColor: '#edf1f6', borderRadius: 20, padding: 14,
     shadowColor: '#18212f', shadowOffset: { width: 0, height: 16 }, shadowOpacity: 0.18, shadowRadius: 28, elevation: 6,
     gap: 8, minHeight: 180,
   },
-  mainCard: { position: 'absolute' as const, left: 0, right: 0, top: 0, zIndex: 5 },
+  mainCard: { position: 'absolute' as const, left: 0, right: 0, top: -30, zIndex: 5 },
   backdropCard: { position: 'absolute' as const, left: 0, right: 0, top: 0, minHeight: 180 },
   cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   chip: { backgroundColor: '#f0f0f2', borderWidth: 1, borderColor: '#d2d2d7', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, maxWidth: 140 },
@@ -544,7 +592,8 @@ const s = StyleSheet.create({
   deckControls: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10, marginTop: 14, zIndex: 10 },
   roundBtn: { width: 40, height: 40, borderRadius: 999, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' },
   roundText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  count: { minWidth: 84, textAlign: 'center', fontWeight: '700', color: '#485568', fontSize: 13.5 },
+  countWrap: { minWidth: 84, alignItems: 'center', overflow: 'hidden' as const, height: 20 },
+  count: { textAlign: 'center', fontWeight: '700', color: '#485568', fontSize: 13.5 },
   swipeHint: { textAlign: 'center', color: '#5e6a7c', fontSize: 12.5, marginTop: 4, marginBottom: 80 },
   empty: { alignItems: 'center', paddingVertical: 40, gap: 8 },
   emptyIcon: { fontSize: 48 },
