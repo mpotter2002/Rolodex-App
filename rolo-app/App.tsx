@@ -22,6 +22,14 @@ function InnerApp() {
     });
   }, []);
 
+  // Re-read onboarded from storage when session arrives (covers the case where
+  // the user confirmed their email externally and we were parked on the confirm screen)
+  useEffect(() => {
+    if (session) {
+      isOnboarded().then((done) => setOnboarded(done));
+    }
+  }, [session]);
+
   // Wait for both Supabase session check and AsyncStorage onboard flag
   if (authLoading || onboardLoading) return null;
 
