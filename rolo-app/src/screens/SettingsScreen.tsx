@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert, Modal,
+  View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert, Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../utils/theme';
 import { useContacts } from '../utils/ContactsContext';
-import { loadAccount, saveAccount } from '../utils/storage';
+import { useAuth } from '../utils/AuthContext';
+import { supabase } from '../utils/supabase';
 import { Contact } from '../types/contact';
 import PaywallSheet from '../components/PaywallSheet';
 
@@ -23,20 +24,42 @@ const MOCK_PHONE_CONTACTS = [
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { contacts, reloadDemo, clearAll, importContacts } = useContacts();
-  const [name, setName] = useState('Michael');
-  const [email, setEmail] = useState('mpotter2002@gmail.com');
+  const { user, signOut } = useAuth();
+  const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
+  const displayEmail = user?.email || '';
+  const avatarLetter = displayName.charAt(0).toUpperCase();
   const [showPaywall, setShowPaywall] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [checkedImports, setCheckedImports] = useState<boolean[]>(MOCK_PHONE_CONTACTS.map(() => true));
   const [isPro, setIsPro] = useState(false);
 
-  useEffect(() => {
-    loadAccount().then((acc) => { setName(acc.name); setEmail(acc.email); });
-  }, []);
+  function handleLogout() {
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign Out', style: 'destructive', onPress: () => signOut() },
+    ]);
+  }
 
-  function handleSaveAccount() {
-    saveAccount(name, email);
-    Alert.alert('Saved', 'Account details updated.');
+  async function handleDeleteAccount() {
+    Alert.alert(
+      'Delete Account',
+      'This will permanently delete your account and all your contacts. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Account',
+          style: 'destructive',
+          onPress: async () => {
+            const { error } = await supabase.rpc('delete_user');
+            if (error) {
+              Alert.alert('Error', 'Could not delete account. Please try again.');
+            } else {
+              await signOut();
+            }
+          },
+        },
+      ]
+    );
   }
 
   function handleImport() {
@@ -110,27 +133,20 @@ export default function SettingsScreen() {
       <Text style={s.sectionLabel}>Account</Text>
       <View style={s.card}>
         <View style={s.accountRow}>
-          <View style={s.accountAvatar}><Text style={s.accountAvatarText}>{(name || '?').charAt(0).toUpperCase()}</Text></View>
-          <View>
-            <Text style={s.accountName}>{name}</Text>
-            <Text style={s.accountEmail}>{email}</Text>
+          <View style={s.accountAvatar}><Text style={s.accountAvatarText}>{avatarLetter}</Text></View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.accountName}>{displayName}</Text>
+            <Text style={s.accountEmail}>{displayEmail}</Text>
             <View style={[s.badge, isPro && { backgroundColor: colors.ink }]}>
               <Text style={[s.badgeText, isPro && { color: '#fff' }]}>{isPro ? 'Pro Plan' : 'Free Plan'}</Text>
             </View>
           </View>
         </View>
-        <View style={s.fieldGroup}>
-          <View style={s.field}>
-            <Text style={s.fieldLabel}>FULL NAME</Text>
-            <TextInput style={s.fieldInput} value={name} onChangeText={setName} />
-          </View>
-          <View style={s.field}>
-            <Text style={s.fieldLabel}>EMAIL</Text>
-            <TextInput style={s.fieldInput} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
-          </View>
-        </View>
-        <TouchableOpacity style={[s.btn, s.btnPrimary]} onPress={handleSaveAccount}>
-          <Text style={s.btnPrimaryText}>Save Changes</Text>
+        <TouchableOpacity style={[s.btn, s.btnSubtle]} onPress={handleLogout}>
+          <Text style={s.btnSubtleText}>Sign Out</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[s.btn, s.btnSubtle, { borderColor: '#f1c5c5' }]} onPress={handleDeleteAccount}>
+          <Text style={[s.btnSubtleText, { color: '#9d2b2b' }]}>Delete Account</Text>
         </TouchableOpacity>
       </View>
 

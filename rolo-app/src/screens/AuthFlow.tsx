@@ -3,7 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, Image, StyleSheet,
   ScrollView, ActivityIndicator,
 } from 'react-native';
-import { AntDesign } from '@expo/vector-icons';
+import { AntDesign, Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../utils/theme';
 import { setOnboarded } from '../utils/storage';
@@ -99,8 +99,7 @@ export default function AuthFlow({ onComplete, startAtOnboarding = false }: { on
     if (error) {
       setErrorMsg(error.message);
     } else {
-      setScreen('onboarding');
-      setOnboardingIdx(0);
+      onComplete();
     }
   }
 
@@ -281,7 +280,7 @@ export default function AuthFlow({ onComplete, startAtOnboarding = false }: { on
             <View style={s.dividerLine} />
           </View>
           <TouchableOpacity style={s.socialBtn} onPress={() => Alert.alert('Coming soon', 'Apple Sign-In will be available in the next build.')}>
-            <AntDesign name="apple1" size={17} color="#1d1d1f" style={{ marginRight: 8 }} />
+            <Ionicons name="logo-apple" size={18} color="#1d1d1f" style={{ marginRight: 8 }} />
             <Text style={s.socialText}>Sign in with Apple</Text>
           </TouchableOpacity>
           <TouchableOpacity style={s.socialBtn} onPress={() => Alert.alert('Coming soon', 'Google Sign-In will be available in the next build.')}>
@@ -358,7 +357,7 @@ export default function AuthFlow({ onComplete, startAtOnboarding = false }: { on
             <View style={s.dividerLine} />
           </View>
           <TouchableOpacity style={s.socialBtn} onPress={() => Alert.alert('Coming soon', 'Apple Sign-In will be available in the next build.')}>
-            <AntDesign name="apple1" size={17} color="#1d1d1f" style={{ marginRight: 8 }} />
+            <Ionicons name="logo-apple" size={18} color="#1d1d1f" style={{ marginRight: 8 }} />
             <Text style={s.socialText}>Sign up with Apple</Text>
           </TouchableOpacity>
           <TouchableOpacity style={s.socialBtn} onPress={() => Alert.alert('Coming soon', 'Google Sign-In will be available in the next build.')}>

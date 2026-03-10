@@ -220,18 +220,15 @@ export default function DeckScreen() {
     );
   }
 
-  function getBackdropCards() {
+  function getBackdropCards(useIndex?: number) {
+    const baseIdx = useIndex ?? deckIndex;
     const total = filtered.length;
     if (total <= 1) return [];
-    // All backdrop cards fan upward from behind the main card (like a real Rolodex stack).
-    // No cards below — there isn't space and the top-only stack looks much cleaner.
     const maxDepth = Math.min(4, total - 1);
     const cards: { contact: Contact; offset: number }[] = [];
-    // Start at d=2 so the closest backdrop is the card two spots back (skips the card directly
-    // behind which was barely visible and made the stack look cluttered)
     for (let d = 2; d <= maxDepth + 1; d++) {
-      const idx = (deckIndex - d + total) % total;
-      cards.push({ contact: filtered[idx], offset: -(d - 1) }); // remap: d=2→offset-1, d=3→-2, etc.
+      const idx = (baseIdx - d + total) % total;
+      cards.push({ contact: filtered[idx], offset: -(d - 1) });
     }
     return cards;
   }
@@ -259,6 +256,63 @@ export default function DeckScreen() {
       </TouchableOpacity>
     );
   }, []);
+
+  // Renders backdrop card stack. During animation: crossfades between old and new
+  // states so there's no flash at the start or snap at the end.
+  function renderBackdropCards() {
+    const baseGap = 42;
+    const firstPad = 38;
+    const easeOut = animating ? 1 - Math.pow(1 - flipProgress, 2) : 0;
+    const yFor = (d: number) => d === 1 ? -(baseGap + firstPad) : -(baseGap + firstPad + baseGap * (d - 1));
+    const opFor = (d: number) => d === 1 ? 0.82 : d === 2 ? 0.50 : d === 3 ? 0.28 : 0.14;
+    const blurFor = (d: number) => d === 1 ? 0.12 : d === 2 ? 0.07 : 0.03;
+
+    const makeCard = (contact: Contact, depth: number, translateY: number, opacity: number, key: string) => (
+      <View key={key} style={[s.backdropCard, {
+        transform: [{ translateY }, { scale: 1 - depth * 0.04 }],
+        opacity, zIndex: 4 - depth,
+        backgroundColor: '#fff', borderWidth: 1, borderColor: '#edf1f6',
+        borderRadius: 20, padding: 14,
+        shadowColor: '#18212f', shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: blurFor(depth), shadowRadius: 18, elevation: 2,
+      }]} pointerEvents="none">
+        <View style={[s.cardTab, contact.cardColors ? { backgroundColor: contact.cardColors.accentHex } : null]}>
+          <Text style={s.cardTabText}>{(contact.name || '?').charAt(0).toUpperCase()}</Text>
+        </View>
+        {depth <= 2 && (
+          <View style={{ marginTop: 10, gap: 4 }}>
+            <Text style={{ fontSize: depth === 1 ? 13.5 : 12, fontWeight: '800', color: '#1f2a39' }} numberOfLines={1}>
+              {contact.name || 'Unnamed'}
+            </Text>
+            {depth === 1 && (contact.title || contact.company) ? (
+              <Text style={{ fontSize: 12, color: '#5a6a7a' }} numberOfLines={1}>
+                {[contact.title, contact.company].filter(Boolean).join(' · ')}
+              </Text>
+            ) : null}
+          </View>
+        )}
+      </View>
+    );
+
+    const cards: JSX.Element[] = [];
+
+    // OLD backdrop: starts at its current positions, departs in navDir direction, fades out
+    if (animating) {
+      for (const { contact, offset } of getBackdropCards(deckIndex)) {
+        const d = Math.abs(offset);
+        cards.push(makeCard(contact, d, yFor(d) + navDir * baseGap * easeOut, opFor(d) * (1 - easeOut), `bg-old-${d}`));
+      }
+    }
+
+    // NEW backdrop: arrives from displaced position, fades in
+    for (const { contact, offset } of getBackdropCards(animating && incomingIndex !== null ? incomingIndex : undefined)) {
+      const d = Math.abs(offset);
+      const arriveShift = animating ? -navDir * baseGap * (1 - easeOut) : 0;
+      cards.push(makeCard(contact, d, yFor(d) + arriveShift, animating ? opFor(d) * easeOut : opFor(d), `bg-new-${d}`));
+    }
+
+    return cards;
+  }
 
   // Prototype-matched Rolodex flip animation
   // Exit (380ms) and enter (550ms) both start simultaneously at t=0, no translateY/scale/opacity
@@ -376,61 +430,7 @@ export default function DeckScreen() {
                   position never shifts regardless of content height. */}
               <View style={s.cardAnchor}>
               {/* Background cards (stacked behind) */}
-              {getBackdropCards().map(({ contact, offset }) => {
-                const depth = Math.abs(offset);
-                const baseGap = 42;
-                const firstPad = 38;
-                const yShift = depth === 1
-                  ? -(baseGap + firstPad)
-                  : -(baseGap + firstPad + baseGap * (depth - 1));
-                const scaleVal = 1 - depth * 0.04;
-                const opacityVal = depth === 1 ? 0.82 : depth === 2 ? 0.50 : depth === 3 ? 0.28 : 0.14;
-                const blurShadow = depth === 1 ? 0.12 : depth === 2 ? 0.07 : 0.03;
-                // Queue advance: each card moves one slot forward (42px toward main card)
-                // with an ease-out curve so it settles smoothly
-                const easeOut = animating ? 1 - Math.pow(1 - flipProgress, 2) : 0;
-                const advanceShift = easeOut * 42 * navDir;
-                return (
-                  <View
-                    key={`bg-${contact.id}-${offset}`}
-                    style={[
-                      s.backdropCard,
-                      {
-                        transform: [{ translateY: yShift + advanceShift }, { scale: scaleVal }],
-                        opacity: opacityVal,
-                        zIndex: 4 - depth,
-                        backgroundColor: '#fff',
-                        borderWidth: 1,
-                        borderColor: '#edf1f6',
-                        borderRadius: 20,
-                        padding: 14,
-                        shadowColor: '#18212f',
-                        shadowOffset: { width: 0, height: 6 },
-                        shadowOpacity: blurShadow,
-                        shadowRadius: 18,
-                        elevation: 2,
-                      },
-                    ]}
-                    pointerEvents="none"
-                  >
-                    <View style={[s.cardTab, contact.cardColors ? { backgroundColor: contact.cardColors.accentHex } : null]}>
-                      <Text style={s.cardTabText}>{(contact.name || '?').charAt(0).toUpperCase()}</Text>
-                    </View>
-                    {depth <= 2 && (
-                      <View style={{ marginTop: 10, gap: 4 }}>
-                        <Text style={{ fontSize: depth === 1 ? 13.5 : 12, fontWeight: '800', color: '#1f2a39' }} numberOfLines={1}>
-                          {contact.name || 'Unnamed'}
-                        </Text>
-                        {depth === 1 && (contact.title || contact.company) ? (
-                          <Text style={{ fontSize: 12, color: '#5a6a7a' }} numberOfLines={1}>
-                            {[contact.title, contact.company].filter(Boolean).join(' · ')}
-                          </Text>
-                        ) : null}
-                      </View>
-                    )}
-                  </View>
-                );
-              })}
+              {renderBackdropCards()}
 
               {/* Main card */}
               {animating && incomingCard ? (
@@ -594,7 +594,7 @@ const s = StyleSheet.create({
   roundText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   countWrap: { minWidth: 84, alignItems: 'center', overflow: 'hidden' as const, height: 20 },
   count: { textAlign: 'center', fontWeight: '700', color: '#485568', fontSize: 13.5 },
-  swipeHint: { textAlign: 'center', color: '#5e6a7c', fontSize: 12.5, marginTop: 4, marginBottom: 80 },
+  swipeHint: { textAlign: 'center', color: '#5e6a7c', fontSize: 12.5, marginTop: 18, marginBottom: 80 },
   empty: { alignItems: 'center', paddingVertical: 40, gap: 8 },
   emptyIcon: { fontSize: 48 },
   emptyTitle: { fontSize: 17, fontWeight: '800', color: colors.ink },
