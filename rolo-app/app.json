@@ -50,7 +50,8 @@
         {
           "contactsPermission": "Rolo can import contacts from your address book."
         }
-      ]
+      ],
+      "expo-font"
     ],
     "extra": {
       "eas": {
