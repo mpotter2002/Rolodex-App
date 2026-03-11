@@ -56,7 +56,7 @@ function TabBar({ state, descriptors, navigation }: any) {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
   const bottomOffset = Math.max(insets.bottom, 8) + 8;
-  const tabBarBg = isDark ? 'rgba(44,44,47,0.97)' : 'rgba(255,255,255,0.96)';
+  const tabBarBg = isDark ? 'rgba(28,28,31,0.97)' : 'rgba(255,255,255,0.96)';
 
   return (
     <View style={[styles.tabBar, { bottom: bottomOffset, backgroundColor: tabBarBg, borderColor: colors.line }]}>

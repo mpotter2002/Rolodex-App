@@ -29,15 +29,15 @@ export const lightColors: ColorPalette = {
 };
 
 export const darkColors: ColorPalette = {
-  bg: '#1a1a1c',
-  bgSoft: '#252528',
-  panel: '#2c2c2f',
-  ink: '#f2f2f5',
-  muted: '#8e8e93',
+  bg: '#0d0d0f',
+  bgSoft: '#3a3a3f',
+  panel: '#1c1c1f',
+  ink: '#f5f5f7',
+  muted: '#98989e',
   accent: '#f0f0f3',
-  onAccent: '#1a1a1c',
-  accentSoft: '#363638',
-  line: '#3a3a3d',
+  onAccent: '#0d0d0f',
+  accentSoft: '#2e2e33',
+  line: '#3a3a3e',
   danger: '#ff453a',
   success: '#30d158',
   link: '#0a84ff',

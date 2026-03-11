@@ -28,9 +28,11 @@
         "foregroundImage": "./assets/rolo-logo.png"
       },
       "permissions": [
-        "CAMERA",
-        "READ_CONTACTS",
-        "READ_EXTERNAL_STORAGE"
+        "android.permission.CAMERA",
+        "android.permission.READ_CONTACTS",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.WRITE_CONTACTS"
       ]
     },
     "web": {
@@ -55,8 +57,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": ""
+        "projectId": "3ddc2c47-c0df-49b5-8ece-606c9b505192"
       }
-    }
+    },
+    "owner": "mpotter2002"
   }
 }
