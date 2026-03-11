@@ -40,6 +40,7 @@ export default function SettingsScreen() {
     const { error } = await supabase.rpc('delete_user');
     if (error) {
       setConfirmingDelete(false);
+      showToast('Failed to delete account. Please try again.');
     } else {
       await clearAll();
       await signOut();

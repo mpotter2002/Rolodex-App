@@ -22,6 +22,7 @@ export default function ContactDetailSheet({ contact, onClose }: Props) {
 
   const [mode, setMode] = useState<'detail' | 'edit'>('detail');
   const [editData, setEditData] = useState(contact);
+  const [displayContact, setDisplayContact] = useState(contact);
 
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const sheetY = useRef(new Animated.Value(600)).current;
@@ -103,28 +104,28 @@ export default function ContactDetailSheet({ contact, onClose }: Props) {
     })
   ).current;
 
-  const initial = (contact.name || contact.company || '?').charAt(0).toUpperCase();
-  const subtitle = [contact.title, contact.company].filter(Boolean).join(' · ');
-  const catLabel = getCategoryLabel(contact.category);
-  const avatarBg = contact.cardColors?.accentHex || colors.accent;
+  const initial = (displayContact.name || displayContact.company || '?').charAt(0).toUpperCase();
+  const subtitle = [displayContact.title, displayContact.company].filter(Boolean).join(' · ');
+  const catLabel = getCategoryLabel(displayContact.category);
+  const avatarBg = displayContact.cardColors?.accentHex || colors.accent;
 
   const fields = [
-    { label: 'Phone', value: contact.phone, href: contact.phone ? `tel:${contact.phone}` : null },
-    { label: 'Email', value: contact.email, href: contact.email ? `mailto:${contact.email}` : null },
-    { label: 'Website', value: contact.website, href: contact.website ? (contact.website.startsWith('http') ? contact.website : `https://${contact.website}`) : null },
-    { label: 'Address', value: contact.address, href: null },
-    { label: 'Notes', value: contact.notes, href: null },
+    { label: 'Phone', value: displayContact.phone, href: displayContact.phone ? `tel:${displayContact.phone}` : null },
+    { label: 'Email', value: displayContact.email, href: displayContact.email ? `mailto:${displayContact.email}` : null },
+    { label: 'Website', value: displayContact.website, href: displayContact.website ? (displayContact.website.startsWith('http') ? displayContact.website : `https://${displayContact.website}`) : null },
+    { label: 'Address', value: displayContact.address, href: null },
+    { label: 'Notes', value: displayContact.notes, href: null },
   ].filter((f) => f.value);
 
   function formatShareText(): string {
     const lines = [];
-    if (contact.name) lines.push(contact.name);
-    if (contact.title) lines.push(contact.title);
-    if (contact.company) lines.push(contact.company);
-    if (contact.phone) lines.push('📞 ' + contact.phone);
-    if (contact.email) lines.push('✉️ ' + contact.email);
-    if (contact.website) lines.push('🌐 ' + contact.website);
-    if (contact.address) lines.push('📍 ' + contact.address);
+    if (displayContact.name) lines.push(displayContact.name);
+    if (displayContact.title) lines.push(displayContact.title);
+    if (displayContact.company) lines.push(displayContact.company);
+    if (displayContact.phone) lines.push('📞 ' + displayContact.phone);
+    if (displayContact.email) lines.push('✉️ ' + displayContact.email);
+    if (displayContact.website) lines.push('🌐 ' + displayContact.website);
+    if (displayContact.address) lines.push('📍 ' + displayContact.address);
     return lines.join('\n');
   }
 
@@ -135,6 +136,7 @@ export default function ContactDetailSheet({ contact, onClose }: Props) {
 
   function handleSave() {
     updateContact(editData);
+    setDisplayContact(editData);
     animateEditClose();
   }
 
@@ -217,21 +219,21 @@ export default function ContactDetailSheet({ contact, onClose }: Props) {
           <View style={[s.avatar, { backgroundColor: avatarBg }]}>
             <Text style={s.avatarText}>{initial}</Text>
           </View>
-          <Text style={s.detailName}>{contact.name || 'Unnamed'}</Text>
+          <Text style={s.detailName}>{displayContact.name || 'Unnamed'}</Text>
           {subtitle ? <Text style={s.detailSubtitle}>{subtitle}</Text> : null}
           <View style={s.actions}>
-            {contact.phone ? (
-              <BouncyPress style={s.actionBtn} onPress={() => Linking.openURL(`tel:${contact.phone}`)}>
+            {displayContact.phone ? (
+              <BouncyPress style={s.actionBtn} onPress={() => Linking.openURL(`tel:${displayContact.phone}`)}>
                 <Text style={s.actionIcon}>📞</Text><Text style={s.actionLabel}>Call</Text>
               </BouncyPress>
             ) : null}
-            {contact.email ? (
-              <BouncyPress style={s.actionBtn} onPress={() => Linking.openURL(`mailto:${contact.email}`)}>
+            {displayContact.email ? (
+              <BouncyPress style={s.actionBtn} onPress={() => Linking.openURL(`mailto:${displayContact.email}`)}>
                 <Text style={s.actionIcon}>✉️</Text><Text style={s.actionLabel}>Email</Text>
               </BouncyPress>
             ) : null}
-            {contact.phone ? (
-              <BouncyPress style={s.actionBtn} onPress={() => Linking.openURL(`sms:${contact.phone}`)}>
+            {displayContact.phone ? (
+              <BouncyPress style={s.actionBtn} onPress={() => Linking.openURL(`sms:${displayContact.phone}`)}>
                 <Text style={s.actionIcon}>💬</Text><Text style={s.actionLabel}>Message</Text>
               </BouncyPress>
             ) : null}

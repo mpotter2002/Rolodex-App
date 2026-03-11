@@ -1,9 +1,10 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions, Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors } from '../utils/theme';
+import { useTheme } from '../utils/ThemeContext';
+import { ColorPalette } from '../utils/theme';
 
 const PAGES = [
   {
@@ -37,6 +38,21 @@ export default function OnboardingScreen({ onDone }: Props) {
   const scrollRef = useRef<ScrollView>(null);
   const [page, setPage] = useState(0);
   const { width } = Dimensions.get('window');
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
+
+  const dotAnims = useRef(PAGES.map((_, i) => new Animated.Value(i === 0 ? 1 : 0))).current;
+
+  useEffect(() => {
+    PAGES.forEach((_, i) => {
+      Animated.spring(dotAnims[i], {
+        toValue: i === page ? 1 : 0,
+        useNativeDriver: false,
+        tension: 280,
+        friction: 22,
+      }).start();
+    });
+  }, [page]);
 
   function goNext() {
     if (page < PAGES.length - 1) {
@@ -77,11 +93,15 @@ export default function OnboardingScreen({ onDone }: Props) {
         ))}
       </ScrollView>
 
-      {/* Dots */}
+      {/* Animated dots */}
       <View style={s.dots}>
-        {PAGES.map((_, i) => (
-          <View key={i} style={[s.dot, i === page && s.dotActive]} />
-        ))}
+        {PAGES.map((_, i) => {
+          const dotWidth = dotAnims[i].interpolate({ inputRange: [0, 1], outputRange: [7, 20] });
+          const dotColor = dotAnims[i].interpolate({ inputRange: [0, 1], outputRange: [colors.line, colors.accent] });
+          return (
+            <Animated.View key={i} style={[s.dot, { width: dotWidth, backgroundColor: dotColor }]} />
+          );
+        })}
       </View>
 
       {/* CTA */}
@@ -99,82 +119,78 @@ export default function OnboardingScreen({ onDone }: Props) {
   );
 }
 
-const s = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  page: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 40,
-    gap: 20,
-  },
-  emojiWrap: {
-    width: 100,
-    height: 100,
-    borderRadius: 32,
-    backgroundColor: colors.accentSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  emoji: {
-    fontSize: 46,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: colors.ink,
-    textAlign: 'center',
-    letterSpacing: -0.5,
-  },
-  desc: {
-    fontSize: 15,
-    color: colors.muted,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  dots: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 16,
-  },
-  dot: {
-    width: 7,
-    height: 7,
-    borderRadius: 999,
-    backgroundColor: colors.line,
-  },
-  dotActive: {
-    backgroundColor: colors.accent,
-    width: 20,
-  },
-  footer: {
-    paddingHorizontal: 24,
-    gap: 10,
-    paddingBottom: 8,
-  },
-  btn: {
-    backgroundColor: colors.accent,
-    borderRadius: 16,
-    paddingVertical: 15,
-    alignItems: 'center',
-  },
-  btnText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  skipBtn: {
-    alignItems: 'center',
-    paddingVertical: 10,
-  },
-  skipText: {
-    fontSize: 14,
-    color: colors.muted,
-    fontWeight: '600',
-  },
-});
+function makeStyles(c: ColorPalette) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: c.bg,
+    },
+    page: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 40,
+      gap: 20,
+    },
+    emojiWrap: {
+      width: 100,
+      height: 100,
+      borderRadius: 32,
+      backgroundColor: c.accentSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 8,
+    },
+    emoji: {
+      fontSize: 46,
+    },
+    title: {
+      fontSize: 26,
+      fontWeight: '800',
+      color: c.ink,
+      textAlign: 'center',
+      letterSpacing: -0.5,
+    },
+    desc: {
+      fontSize: 15,
+      color: c.muted,
+      textAlign: 'center',
+      lineHeight: 22,
+    },
+    dots: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: 6,
+      paddingVertical: 16,
+    },
+    dot: {
+      height: 7,
+      borderRadius: 999,
+    },
+    footer: {
+      paddingHorizontal: 24,
+      gap: 10,
+      paddingBottom: 8,
+    },
+    btn: {
+      backgroundColor: c.accent,
+      borderRadius: 16,
+      paddingVertical: 15,
+      alignItems: 'center',
+    },
+    btnText: {
+      color: c.onAccent,
+      fontSize: 16,
+      fontWeight: '700',
+    },
+    skipBtn: {
+      alignItems: 'center',
+      paddingVertical: 10,
+    },
+    skipText: {
+      fontSize: 14,
+      color: c.muted,
+      fontWeight: '600',
+    },
+  });
+}

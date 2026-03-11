@@ -471,27 +471,31 @@ export default function DeckScreen() {
             </View>
           )}
 
-          <View style={s.deckControls}>
-            <Animated.View style={{ transform: [{ scale: downBtnScale }] }}>
-              <TouchableOpacity style={s.roundBtn} onPress={() => pressBtn(downBtnScale, () => navigate(1))}>
-                <Ionicons name="chevron-down" size={20} color={colors.onAccent} />
-              </TouchableOpacity>
-            </Animated.View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', minWidth: 84, justifyContent: 'center' }}>
-              <View style={{ height: 18, overflow: 'hidden' as const, justifyContent: 'center' }}>
-                <Animated.Text style={[s.count, { lineHeight: 18, transform: [{ translateY: countY }], opacity: countOpacity }]}>
-                  {filtered.length ? `${displayIndex + 1}` : '0'}
-                </Animated.Text>
+          {currentCard && (
+            <>
+              <View style={s.deckControls}>
+                <Animated.View style={{ transform: [{ scale: downBtnScale }] }}>
+                  <TouchableOpacity style={s.roundBtn} onPress={() => pressBtn(downBtnScale, () => navigate(1))}>
+                    <Ionicons name="chevron-down" size={20} color={colors.onAccent} />
+                  </TouchableOpacity>
+                </Animated.View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', minWidth: 84, justifyContent: 'center' }}>
+                  <View style={{ height: 18, overflow: 'hidden' as const, justifyContent: 'center' }}>
+                    <Animated.Text style={[s.count, { lineHeight: 18, transform: [{ translateY: countY }], opacity: countOpacity }]}>
+                      {filtered.length ? `${displayIndex + 1}` : '0'}
+                    </Animated.Text>
+                  </View>
+                  <Text style={[s.count, { lineHeight: 18 }]}>{filtered.length ? ` / ${filtered.length}` : ' / 0'}</Text>
+                </View>
+                <Animated.View style={{ transform: [{ scale: upBtnScale }] }}>
+                  <TouchableOpacity style={s.roundBtn} onPress={() => pressBtn(upBtnScale, () => navigate(-1))}>
+                    <Ionicons name="chevron-up" size={20} color={colors.onAccent} />
+                  </TouchableOpacity>
+                </Animated.View>
               </View>
-              <Text style={[s.count, { lineHeight: 18 }]}>{filtered.length ? ` / ${filtered.length}` : ' / 0'}</Text>
-            </View>
-            <Animated.View style={{ transform: [{ scale: upBtnScale }] }}>
-              <TouchableOpacity style={s.roundBtn} onPress={() => pressBtn(upBtnScale, () => navigate(-1))}>
-                <Ionicons name="chevron-up" size={20} color={colors.onAccent} />
-              </TouchableOpacity>
-            </Animated.View>
-          </View>
-          <Text style={s.swipeHint}>Swipe down for next card, swipe up for previous</Text>
+              <Text style={s.swipeHint}>Swipe down for next card, swipe up for previous</Text>
+            </>
+          )}
         </View>
       ) : (
         <View style={s.listArea}>

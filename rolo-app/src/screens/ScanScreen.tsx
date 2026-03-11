@@ -152,14 +152,14 @@ export default function ScanScreen() {
     >
       {/* Upload area */}
       <View style={s.card}>
-        <TouchableOpacity style={s.upload} activeOpacity={0.7} onPress={pickImage}>
+        <TouchableOpacity style={s.upload} activeOpacity={0.7} onPress={takePhoto}>
           {imageUri ? (
             <Image source={{ uri: imageUri }} style={s.preview} />
           ) : (
             <View style={s.uploadContent}>
-              <View style={s.uploadIconWrap}><Text style={s.uploadIcon}>#</Text></View>
+              <View style={s.uploadIconWrap}><Text style={s.uploadIcon}>📷</Text></View>
               <Text style={s.uploadTitle}>Tap to take a card photo</Text>
-              <Text style={s.uploadSub}>or upload from your gallery</Text>
+              <Text style={s.uploadSub}>or use the buttons below</Text>
             </View>
           )}
         </TouchableOpacity>
