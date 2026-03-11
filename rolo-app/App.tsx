@@ -1,49 +1,46 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Platform, useWindowDimensions } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from './src/utils/AuthContext';
 import { ContactsProvider } from './src/utils/ContactsContext';
+import { ThemeProvider, useTheme } from './src/utils/ThemeContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import AuthFlow from './src/screens/AuthFlow';
-import { isOnboarded } from './src/utils/storage';
+import OnboardingScreen from './src/screens/OnboardingScreen';
+import { isOnboarded, setOnboarded } from './src/utils/storage';
 
 /** Needs to live inside AuthProvider so useAuth() works */
 function InnerApp() {
-  const { session, user, loading: authLoading } = useAuth();
-  const [onboarded, setOnboarded] = useState(false);
-  const [onboardLoading, setOnboardLoading] = useState(true);
+  const { session, user, loading } = useAuth();
+  const [onboarded, setOnboardedState] = useState<boolean | null>(null);
 
-  useEffect(() => {
-    isOnboarded().then((done) => {
-      setOnboarded(done);
-      setOnboardLoading(false);
-    });
-  }, []);
-
-  // Re-read onboarded from storage when session arrives (covers the case where
-  // the user confirmed their email externally and we were parked on the confirm screen)
+  // Check onboarding flag whenever we have a session
   useEffect(() => {
     if (session) {
-      isOnboarded().then((done) => setOnboarded(done));
+      isOnboarded().then(setOnboardedState);
+    } else {
+      // Reset so we re-check after next sign-in
+      setOnboardedState(null);
     }
   }, [session]);
 
-  // Wait for both Supabase session check and AsyncStorage onboard flag
-  if (authLoading || onboardLoading) return null;
-
-  // Not signed in — show full splash → login/signup → onboarding flow
-  if (!session) {
-    return <AuthFlow onComplete={() => setOnboarded(true)} />;
+  async function handleOnboardingDone() {
+    await setOnboarded();
+    setOnboardedState(true);
   }
 
-  // Signed in but hasn't seen onboarding (e.g. signed in on a new device)
+  if (loading) return null;
+  if (!session) return <AuthFlow />;
+
+  // Wait until we know the onboarding status
+  if (onboarded === null) return null;
+
   if (!onboarded) {
-    return <AuthFlow startAtOnboarding onComplete={() => setOnboarded(true)} />;
+    return <OnboardingScreen onDone={handleOnboardingDone} />;
   }
 
-  // Signed in + onboarded — show the main app, scoped to this user's contacts
   return (
     <ContactsProvider userId={user?.id}>
       <AppNavigator />
@@ -51,29 +48,27 @@ function InnerApp() {
   );
 }
 
-export default function App() {
+/** Sits inside ThemeProvider so useTheme() works */
+function AppShell() {
+  const { colors, isDark } = useTheme();
   const isWeb = Platform.OS === 'web';
   const { width: winW, height: winH } = useWindowDimensions();
 
   const content = (
-    <SafeAreaProvider>
-      <AuthProvider>
-        <NavigationContainer>
-          <StatusBar style="dark" />
-          <InnerApp />
-        </NavigationContainer>
-      </AuthProvider>
-    </SafeAreaProvider>
+    <AuthProvider>
+      <NavigationContainer>
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+        <InnerApp />
+      </NavigationContainer>
+    </AuthProvider>
   );
 
   if (isWeb) {
-    // Fit snugly in the visible viewport — cap at phone proportions but never overflow
     const frameH = Math.min(880, winH - 16);
     const frameW = Math.min(420, winW - 16);
-
     return (
-      <View style={styles.webOuter}>
-        <View style={[styles.webFrame, { width: frameW, height: frameH }]}>
+      <View style={[styles.webOuter, { backgroundColor: colors.bg }]}>
+        <View style={[styles.webFrame, { width: frameW, height: frameH, backgroundColor: colors.panel, borderColor: isDark ? colors.line : '#f0f3f8' }]}>
           {content}
         </View>
       </View>
@@ -83,19 +78,26 @@ export default function App() {
   return content;
 }
 
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <AppShell />
+      </ThemeProvider>
+    </SafeAreaProvider>
+  );
+}
+
 const styles = StyleSheet.create({
   webOuter: {
     flex: 1,
-    backgroundColor: '#f5f5f7',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 8,
   },
   webFrame: {
-    backgroundColor: '#ffffff',
     borderRadius: 34,
     borderWidth: 1,
-    borderColor: '#f0f3f8',
     overflow: 'hidden',
     shadowColor: '#192434',
     shadowOffset: { width: 0, height: 24 },

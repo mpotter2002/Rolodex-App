@@ -1,27 +1,18 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, Image, StyleSheet,
-  ScrollView, ActivityIndicator,
+  ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { AntDesign, Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../utils/theme';
-import { setOnboarded } from '../utils/storage';
 import { supabase } from '../utils/supabase';
 
-type Screen = 'splash' | 'login' | 'signup' | 'forgot' | 'onboarding' | 'confirm';
+type Screen = 'splash' | 'login' | 'signup' | 'forgot' | 'confirm';
 
-const ONBOARDING_PAGES = [
-  { icon: '📇', title: 'Welcome to Rolo', desc: 'Your digital Rolodex. Scan, save, and organize all your business contacts in one place.' },
-  { icon: '📷', title: 'Scan Business Cards', desc: 'Snap a photo of any business card. Our AI reads it and fills in all the contact details for you.' },
-  { icon: '🗂️', title: 'Organize Your Way', desc: 'Browse your contacts in deck or list view. Filter by category, search by name — find anyone in seconds.' },
-  { icon: '🚀', title: "You're All Set", desc: 'Start by scanning your first card or adding a contact manually. Your Rolo is ready to go!' },
-];
-
-export default function AuthFlow({ onComplete, startAtOnboarding = false }: { onComplete: () => void; startAtOnboarding?: boolean }) {
+export default function AuthFlow() {
   const insets = useSafeAreaInsets();
-  const [screen, setScreen] = useState<Screen>(startAtOnboarding ? 'onboarding' : 'splash');
-  const [onboardingIdx, setOnboardingIdx] = useState(0);
+  const [screen, setScreen] = useState<Screen>('splash');
 
   // form state
   const [fullName, setFullName] = useState('');
@@ -33,18 +24,6 @@ export default function AuthFlow({ onComplete, startAtOnboarding = false }: { on
   const [errorMsg, setErrorMsg] = useState('');
 
   // ─── helpers ───────────────────────────────────────────────────────────────
-
-  async function finishOnboarding() {
-    await setOnboarded();
-    // Check if a session already exists (e.g. email confirmation disabled)
-    const { data } = await supabase.auth.getSession();
-    if (data.session) {
-      onComplete();
-    } else {
-      // Email confirmation required — park on confirm screen
-      setScreen('confirm');
-    }
-  }
 
   function resetForm() {
     setFullName('');
@@ -70,7 +49,7 @@ export default function AuthFlow({ onComplete, startAtOnboarding = false }: { on
     if (password.length < 8) { setErrorMsg('Password must be at least 8 characters.'); return; }
 
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
       options: { data: { full_name: fullName.trim() } },
@@ -79,9 +58,11 @@ export default function AuthFlow({ onComplete, startAtOnboarding = false }: { on
 
     if (error) {
       setErrorMsg(error.message);
+    } else if (data.session) {
+      // Email confirmation disabled — onAuthStateChange handles navigation
     } else {
-      setScreen('onboarding');
-      setOnboardingIdx(0);
+      // Email confirmation required
+      setScreen('confirm');
     }
   }
 
@@ -98,20 +79,19 @@ export default function AuthFlow({ onComplete, startAtOnboarding = false }: { on
 
     if (error) {
       setErrorMsg(error.message);
-    } else {
-      onComplete();
     }
+    // On success, onAuthStateChange fires → session set → App renders main app
   }
 
   async function handleForgotPassword() {
-    if (!forgotEmail.trim()) { Alert.alert('Email required', 'Please enter your email address.'); return; }
+    if (!forgotEmail.trim()) { setErrorMsg('Please enter your email address.'); return; }
 
     setLoading(true);
     const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail.trim());
     setLoading(false);
 
     if (error) {
-      Alert.alert('Error', error.message);
+      setErrorMsg(error.message);
     } else {
       setForgotSent(true);
     }
@@ -136,40 +116,6 @@ export default function AuthFlow({ onComplete, startAtOnboarding = false }: { on
           <TouchableOpacity onPress={() => goTo('signup')}>
             <Text style={s.skipText}>Use a different email</Text>
           </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
-  // ─── onboarding ────────────────────────────────────────────────────────────
-
-  if (screen === 'onboarding') {
-    const page = ONBOARDING_PAGES[onboardingIdx];
-    const isLast = onboardingIdx === ONBOARDING_PAGES.length - 1;
-    return (
-      <View style={[s.container, { paddingTop: insets.top }]}>
-        <View style={s.onboardingBody}>
-          <Text style={s.onboardingIcon}>{page.icon}</Text>
-          <Text style={s.onboardingTitle}>{page.title}</Text>
-          <Text style={s.onboardingDesc}>{page.desc}</Text>
-        </View>
-        <View style={s.dots}>
-          {ONBOARDING_PAGES.map((_, i) => (
-            <View key={i} style={[s.dot, i === onboardingIdx && s.dotActive]} />
-          ))}
-        </View>
-        <View style={[s.authActions, { paddingBottom: insets.bottom + 16 }]}>
-          <TouchableOpacity
-            style={s.btnBlack}
-            onPress={() => isLast ? finishOnboarding() : setOnboardingIdx(onboardingIdx + 1)}
-          >
-            <Text style={s.btnBlackText}>{isLast ? 'Get Started' : 'Next'}</Text>
-          </TouchableOpacity>
-          {!isLast && (
-            <TouchableOpacity onPress={finishOnboarding}>
-              <Text style={s.skipText}>Skip</Text>
-            </TouchableOpacity>
-          )}
         </View>
       </View>
     );
@@ -213,6 +159,7 @@ export default function AuthFlow({ onComplete, startAtOnboarding = false }: { on
                 onChangeText={setForgotEmail}
               />
             </View>
+            {!!errorMsg && <Text style={s.errorText}>{errorMsg}</Text>}
             <TouchableOpacity style={[s.btnBlack, loading && s.btnDisabled]} onPress={handleForgotPassword} disabled={loading}>
               {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnBlackText}>Send Reset Link</Text>}
             </TouchableOpacity>
@@ -230,6 +177,10 @@ export default function AuthFlow({ onComplete, startAtOnboarding = false }: { on
 
   if (screen === 'login') {
     return (
+      <KeyboardAvoidingView
+        style={{ flex: 1, backgroundColor: colors.panel }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
       <ScrollView
         style={[s.container, { paddingTop: insets.top }]}
         contentContainerStyle={{ flexGrow: 1 }}
@@ -293,6 +244,7 @@ export default function AuthFlow({ onComplete, startAtOnboarding = false }: { on
           <TouchableOpacity onPress={() => goTo('signup')}><Text style={s.switchLink}>Create one</Text></TouchableOpacity>
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     );
   }
 
@@ -300,6 +252,10 @@ export default function AuthFlow({ onComplete, startAtOnboarding = false }: { on
 
   if (screen === 'signup') {
     return (
+      <KeyboardAvoidingView
+        style={{ flex: 1, backgroundColor: colors.panel }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
       <ScrollView
         style={[s.container, { paddingTop: insets.top }]}
         contentContainerStyle={{ flexGrow: 1 }}
@@ -370,6 +326,7 @@ export default function AuthFlow({ onComplete, startAtOnboarding = false }: { on
           <TouchableOpacity onPress={() => goTo('login')}><Text style={s.switchLink}>Sign in</Text></TouchableOpacity>
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     );
   }
 
@@ -428,14 +385,11 @@ const s = StyleSheet.create({
   switchRow: { flexDirection: 'row', justifyContent: 'center', padding: 20 },
   switchText: { color: colors.muted, fontSize: 13.5 },
   switchLink: { color: colors.ink, fontSize: 13.5, fontWeight: '700', textDecorationLine: 'underline' },
-  // Onboarding
+  // Confirm screen
   onboardingBody: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 },
   onboardingIcon: { fontSize: 64, marginBottom: 20 },
   onboardingTitle: { fontSize: 24, fontWeight: '800', letterSpacing: -0.5, color: colors.ink, marginBottom: 10, textAlign: 'center' },
   onboardingDesc: { fontSize: 14.5, color: colors.muted, lineHeight: 21, textAlign: 'center', maxWidth: 280 },
-  dots: { flexDirection: 'row', gap: 8, justifyContent: 'center', paddingVertical: 16 },
-  dot: { width: 8, height: 8, borderRadius: 999, backgroundColor: colors.line },
-  dotActive: { backgroundColor: colors.accent, width: 24 },
   skipText: { color: colors.muted, fontSize: 13.5, fontWeight: '600', textAlign: 'center', padding: 8 },
   // Forgot
   successBox: { alignItems: 'center', gap: 10, paddingVertical: 20 },
