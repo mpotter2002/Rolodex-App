@@ -395,7 +395,7 @@ export default function DeckScreen() {
             onFocus={() => setSearchFocused(true)}
             onBlur={() => setSearchFocused(false)}
           />
-          {searchFocused && (
+          {(searchFocused || search.length > 0) && (
             <TouchableOpacity style={s.searchClear} onPress={() => { setSearch(''); Keyboard.dismiss(); }} activeOpacity={0.7}>
               <Text style={s.searchClearText}>✕</Text>
             </TouchableOpacity>
