@@ -67,6 +67,13 @@ export async function clearAll(): Promise<void> {
   await AsyncStorage.removeItem(ACCOUNT_KEY);
 }
 
+// Clears only contact/account data — leaves onboarding flag so returning
+// users don't see onboarding again after signing back in on the same device.
+export async function clearUserData(): Promise<void> {
+  await AsyncStorage.removeItem(CONTACTS_KEY);
+  await AsyncStorage.removeItem(ACCOUNT_KEY);
+}
+
 // ─── Supabase contact sync ────────────────────────────────────────────────────
 
 /** Convert camelCase Contact to Supabase row shape */

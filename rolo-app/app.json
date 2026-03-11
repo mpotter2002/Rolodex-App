@@ -44,6 +44,12 @@
           "photosPermission": "Rolo needs photo library access to import business card images.",
           "cameraPermission": "Rolo needs camera access to scan business cards."
         }
+      ],
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Rolo can import contacts from your address book."
+        }
       ]
     ],
     "extra": {

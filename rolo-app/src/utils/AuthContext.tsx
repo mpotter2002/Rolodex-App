@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from './supabase';
+import { clearUserData } from './storage';
 
 interface AuthState {
   session: Session | null;
@@ -36,6 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   async function signOut() {
+    await clearUserData(); // clear local contacts/account before session drops
     await supabase.auth.signOut();
     // session will be cleared by onAuthStateChange above
   }

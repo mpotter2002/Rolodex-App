@@ -19,6 +19,7 @@
     "expo": "~55.0.5",
     "expo-camera": "^55.0.9",
     "expo-clipboard": "^55.0.8",
+    "expo-contacts": "~55.0.8",
     "expo-font": "^55.0.4",
     "expo-haptics": "^55.0.8",
     "expo-image-picker": "^55.0.11",
