@@ -1,29 +1,42 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
-  StyleSheet, Image, ScrollView, Animated, useWindowDimensions,
+  StyleSheet, Image, ScrollView, Animated, useWindowDimensions, PanResponder, Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, radius } from '../utils/theme';
+import { ColorPalette, radius } from '../utils/theme';
+import { useTheme } from '../utils/ThemeContext';
 import { useContacts } from '../utils/ContactsContext';
 import { CATEGORIES, getCategoryLabel } from '../data/categories';
 import { Contact } from '../types/contact';
 import ContactDetailSheet from '../components/ContactDetailSheet';
+import BouncyPress from '../components/BouncyPress';
 
 type SortKey = 'newest' | 'oldest' | 'name-az' | 'name-za' | 'company-az';
 
 export default function DeckScreen() {
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
-  // Viewport height = window minus all fixed UI overhead (header, search, toggle, categories, controls, hint, nav)
-  // Clamped between 160px (min usable) and 420px (max comfortable)
   const vpHeight = Math.max(160, Math.min(420, windowHeight - 370));
   const { contacts } = useContacts();
+  const { colors, themeMode, setThemeMode } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
+
+  const cycleTheme = useCallback(() => {
+    if (themeMode === 'system') setThemeMode('light');
+    else if (themeMode === 'light') setThemeMode('dark');
+    else setThemeMode('system');
+  }, [themeMode, setThemeMode]);
+
+  const themeIcon = themeMode === 'dark' ? 'moon' : themeMode === 'light' ? 'sunny' : 'contrast-outline';
+
   const [search, setSearch] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
   const [activeCategory, setActiveCategory] = useState('');
   const [viewMode, setViewMode] = useState<'deck' | 'list'>('deck');
   const [sortKey, setSortKey] = useState<SortKey>('newest');
+  const [showSortMenu, setShowSortMenu] = useState(false);
   const [deckIndex, setDeckIndex] = useState(0);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
 
@@ -42,15 +55,15 @@ export default function DeckScreen() {
 
   const sorted = useMemo(() => {
     if (viewMode !== 'list') return filtered;
-    const s = [...filtered];
+    const s2 = [...filtered];
     switch (sortKey) {
-      case 'oldest': s.sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()); break;
-      case 'name-az': s.sort((a, b) => (a.name || '').localeCompare(b.name || '')); break;
-      case 'name-za': s.sort((a, b) => (b.name || '').localeCompare(a.name || '')); break;
-      case 'company-az': s.sort((a, b) => (a.company || '').localeCompare(b.company || '')); break;
-      default: s.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()); break;
+      case 'oldest': s2.sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()); break;
+      case 'name-az': s2.sort((a, b) => (a.name || '').localeCompare(b.name || '')); break;
+      case 'name-za': s2.sort((a, b) => (b.name || '').localeCompare(a.name || '')); break;
+      case 'company-az': s2.sort((a, b) => (a.company || '').localeCompare(b.company || '')); break;
+      default: s2.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()); break;
     }
-    return s;
+    return s2;
   }, [filtered, viewMode, sortKey]);
 
   const usedCategories = useMemo(() => {
@@ -58,13 +71,11 @@ export default function DeckScreen() {
     return CATEGORIES.filter((c) => used.has(c.key));
   }, [contacts]);
 
-  // UI transition animations
   const contentFade = useRef(new Animated.Value(1)).current;
   const deckToggleBg = useRef(new Animated.Value(viewMode === 'deck' ? 1 : 0)).current;
   const listToggleBg = useRef(new Animated.Value(viewMode === 'list' ? 1 : 0)).current;
   const downBtnScale = useRef(new Animated.Value(1)).current;
   const upBtnScale = useRef(new Animated.Value(1)).current;
-  // Counter animation
   const countY = useRef(new Animated.Value(0)).current;
   const countOpacity = useRef(new Animated.Value(1)).current;
   const [displayIndex, setDisplayIndex] = useState(0);
@@ -72,7 +83,6 @@ export default function DeckScreen() {
 
   const switchViewMode = useCallback((mode: 'deck' | 'list') => {
     if (mode === viewMode) return;
-    // Fade out, swap content, fade back in
     Animated.timing(contentFade, { toValue: 0, duration: 100, useNativeDriver: true }).start(() => {
       setViewMode(mode);
       Animated.timing(contentFade, { toValue: 1, duration: 180, useNativeDriver: true }).start();
@@ -115,7 +125,6 @@ export default function DeckScreen() {
     };
   }, []);
 
-  // Counter slide animation when deck index changes
   useEffect(() => {
     if (prevDeckIndexRef.current === null) {
       prevDeckIndexRef.current = deckIndex;
@@ -184,7 +193,6 @@ export default function DeckScreen() {
       <>
         <View style={s.cardRow}>
           <View style={s.chip}><Text style={s.chipText} numberOfLines={1}>{contact.company || 'Contact'}</Text></View>
-          {/* spacer keeps chip from running under the absolute tab */}
           <View style={{ width: 36 }} />
         </View>
         <Text style={s.cardName}>{contact.name || 'Unnamed'}</Text>
@@ -205,7 +213,6 @@ export default function DeckScreen() {
 
     return (
       <>
-        {/* Tab sticks above the card's top-right corner, flips with the card */}
         <View style={[s.cardTab, tabColor]}>
           <Text style={s.cardTabText}>{initial}</Text>
         </View>
@@ -255,10 +262,8 @@ export default function DeckScreen() {
         </View>
       </TouchableOpacity>
     );
-  }, []);
+  }, [s]);
 
-  // Renders backdrop card stack. During animation: crossfades between old and new
-  // states so there's no flash at the start or snap at the end.
   function renderBackdropCards() {
     const baseGap = 42;
     const firstPad = 38;
@@ -271,7 +276,7 @@ export default function DeckScreen() {
       <View key={key} style={[s.backdropCard, {
         transform: [{ translateY }, { scale: 1 - depth * 0.04 }],
         opacity, zIndex: 4 - depth,
-        backgroundColor: '#fff', borderWidth: 1, borderColor: '#edf1f6',
+        backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.line,
         borderRadius: 20, padding: 14,
         shadowColor: '#18212f', shadowOffset: { width: 0, height: 6 },
         shadowOpacity: blurFor(depth), shadowRadius: 18, elevation: 2,
@@ -281,11 +286,11 @@ export default function DeckScreen() {
         </View>
         {depth <= 2 && (
           <View style={{ marginTop: 10, gap: 4 }}>
-            <Text style={{ fontSize: depth === 1 ? 13.5 : 12, fontWeight: '800', color: '#1f2a39' }} numberOfLines={1}>
+            <Text style={{ fontSize: depth === 1 ? 13.5 : 12, fontWeight: '800', color: colors.ink }} numberOfLines={1}>
               {contact.name || 'Unnamed'}
             </Text>
             {depth === 1 && (contact.title || contact.company) ? (
-              <Text style={{ fontSize: 12, color: '#5a6a7a' }} numberOfLines={1}>
+              <Text style={{ fontSize: 12, color: colors.muted }} numberOfLines={1}>
                 {[contact.title, contact.company].filter(Boolean).join(' · ')}
               </Text>
             ) : null}
@@ -296,7 +301,6 @@ export default function DeckScreen() {
 
     const cards: JSX.Element[] = [];
 
-    // OLD backdrop: starts at its current positions, departs in navDir direction, fades out
     if (animating) {
       for (const { contact, offset } of getBackdropCards(deckIndex)) {
         const d = Math.abs(offset);
@@ -304,7 +308,6 @@ export default function DeckScreen() {
       }
     }
 
-    // NEW backdrop: arrives from displaced position, fades in
     for (const { contact, offset } of getBackdropCards(animating && incomingIndex !== null ? incomingIndex : undefined)) {
       const d = Math.abs(offset);
       const arriveShift = animating ? -navDir * baseGap * (1 - easeOut) : 0;
@@ -314,18 +317,29 @@ export default function DeckScreen() {
     return cards;
   }
 
-  // Prototype-matched Rolodex flip animation
-  // Exit (380ms) and enter (550ms) both start simultaneously at t=0, no translateY/scale/opacity
-  const FLIP_TOTAL_MS = 600; // total window — enter finishes at 550ms
+  const navigateRef = useRef(navigate);
+  useEffect(() => { navigateRef.current = navigate; }, [navigate]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, g) =>
+        Math.abs(g.dy) > 10 && Math.abs(g.dy) > Math.abs(g.dx) * 1.2,
+      onPanResponderRelease: (_, g) => {
+        if (g.dy > 40) navigateRef.current(1);
+        else if (g.dy < -40) navigateRef.current(-1);
+      },
+    })
+  ).current;
+
+  const FLIP_TOTAL_MS = 600;
   const EXIT_MS = 380;
   const ENTER_MS = 550;
 
   const exitRaw = Math.min(1, (flipProgress * FLIP_TOTAL_MS) / EXIT_MS);
   const enterRaw = Math.min(1, (flipProgress * FLIP_TOTAL_MS) / ENTER_MS);
 
-  // Exit: cubic ease-in — matches prototype cubic-bezier(0.4, 0, 0.8, 0.7)
   const easeInCubic = (t: number) => t * t * t;
-  // Enter: ease-out with subtle spring overshoot (prototype has 3deg overshoot at 88%)
   const easeOutSpring = (t: number) => {
     const c1 = 1.1;
     const c3 = c1 + 1;
@@ -335,57 +349,59 @@ export default function DeckScreen() {
   const exitT = easeInCubic(exitRaw);
   const enterT = easeOutSpring(enterRaw);
 
-  // Always pivot at the bottom edge — top of card moves, bottom stays fixed
-  // navDir=1 (swipe up): top goes UP and BACK into screen (rotateX negative)
-  // navDir=-1 (swipe down): top comes DOWN and FORWARD toward viewer (rotateX positive)
   const pivotOrigin = 'center bottom';
   const exitAngle = navDir > 0 ? -90 * exitT : 90 * exitT;
   const enterStartAngle = navDir > 0 ? 90 : -90;
   const enterAngle = enterStartAngle * (1 - enterT);
 
-  // Down (navDir=1): old card stays on top, new card comes in from behind
-  // Up (navDir=-1): new card comes in front of the old one
   const outgoingZ = navDir > 0 ? 6 : 5;
   const incomingZ = navDir > 0 ? 5 : 6;
 
   const outgoingCardStyle = {
     zIndex: outgoingZ,
     transformOrigin: pivotOrigin,
-    transform: [
-      { perspective: 900 },
-      { rotateX: `${exitAngle}deg` },
-    ],
+    transform: [{ perspective: 900 }, { rotateX: `${exitAngle}deg` }],
   };
+  const incomingOpacity = animating ? Math.min(1, enterRaw / 0.15) : 1;
   const incomingCardStyle = {
     zIndex: incomingZ,
     transformOrigin: pivotOrigin,
-    transform: [
-      { perspective: 900 },
-      { rotateX: `${enterAngle}deg` },
-    ],
+    opacity: incomingOpacity,
+    transform: [{ perspective: 900 }, { rotateX: `${enterAngle}deg` }],
   };
 
   return (
     <View style={[s.container, { paddingTop: insets.top + 8 }]}>
-      {/* All header UI — high zIndex so deck cards never bleed over it */}
-      <View style={{ zIndex: 30, backgroundColor: colors.panel }}>
-        {/* Header */}
+      <View style={{ zIndex: 30, backgroundColor: colors.bg }}>
         <View style={s.header}>
-          <Image source={require('../../assets/rolo-logo.png')} style={s.logo} />
-          <Text style={s.wordmark}>Rolo</Text>
+          <View style={s.headerSpacer} />
+          <View style={s.headerCenter}>
+            <Image source={require('../../assets/rolo-logo.png')} style={s.logo} />
+            <Text style={s.wordmark}>Rolo</Text>
+          </View>
+          <TouchableOpacity style={s.themeBtn} onPress={cycleTheme} activeOpacity={0.7}>
+            <Ionicons name={themeIcon as any} size={19} color={colors.muted} />
+          </TouchableOpacity>
         </View>
         <Text style={s.summary}>{contacts.length} contact{contacts.length === 1 ? '' : 's'} saved</Text>
 
-        {/* Search */}
-        <TextInput
-          style={s.search}
-          placeholder="Search name, company, email..."
-          placeholderTextColor={colors.muted}
-          value={search}
-          onChangeText={setSearch}
-        />
+        <View style={s.searchWrap}>
+          <TextInput
+            style={s.search}
+            placeholder="Search name, company, email..."
+            placeholderTextColor={colors.muted}
+            value={search}
+            onChangeText={setSearch}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
+          />
+          {searchFocused && (
+            <TouchableOpacity style={s.searchClear} onPress={() => { setSearch(''); Keyboard.dismiss(); }} activeOpacity={0.7}>
+              <Text style={s.searchClearText}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
-        {/* View Toggle */}
         <View style={s.toggle}>
           <TouchableOpacity style={s.toggleBtn} onPress={() => switchViewMode('deck')} activeOpacity={0.7}>
             <Animated.View style={[s.toggleBtnBg, { opacity: deckToggleBg }]} />
@@ -399,50 +415,40 @@ export default function DeckScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Category Filter */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filterBar} contentContainerStyle={s.filterContent}>
-          <TouchableOpacity
+          <BouncyPress
             style={[s.pill, !activeCategory && s.pillActive]}
             onPress={() => { setActiveCategory(''); setDeckIndex(0); }}
+            scale={0.93}
           >
             <Text style={[s.pillText, !activeCategory && s.pillTextActive]}>All</Text>
-          </TouchableOpacity>
+          </BouncyPress>
           {usedCategories.map((cat) => (
-            <TouchableOpacity
+            <BouncyPress
               key={cat.key}
               style={[s.pill, activeCategory === cat.key && s.pillActive]}
               onPress={() => { setActiveCategory(cat.key); setDeckIndex(0); }}
+              scale={0.93}
             >
               <Text style={[s.pillText, activeCategory === cat.key && s.pillTextActive]}>{cat.label}</Text>
-            </TouchableOpacity>
+            </BouncyPress>
           ))}
         </ScrollView>
       </View>
 
-      {/* Deck or List — fades when switching modes, zIndex below header */}
-      <Animated.View style={{ flex: 1, opacity: contentFade, backgroundColor: colors.panel, zIndex: 1 }}>
+      <Animated.View style={{ flex: 1, opacity: contentFade, backgroundColor: colors.bg, zIndex: 1 }}>
       {viewMode === 'deck' ? (
         <View style={s.deckArea}>
           {currentCard ? (
-            <View style={[s.deckViewport, { height: vpHeight }]}>
-              {/* Anchor: a non-absolute box that flexbox can centre; all cards
-                  are absolute children pinned to top:0 inside it so their
-                  position never shifts regardless of content height. */}
+            <View style={[s.deckViewport, { height: vpHeight }]} {...panResponder.panHandlers}>
               <View style={s.cardAnchor}>
-              {/* Background cards (stacked behind) */}
               {renderBackdropCards()}
-
-              {/* Main card */}
               {animating && incomingCard ? (
                 <>
-                  <View style={[
-                    s.rolocard, s.mainCard, outgoingCardStyle,
-                  ]}>
+                  <View style={[s.rolocard, s.mainCard, outgoingCardStyle]}>
                     {renderDeckCardContent(currentCard, false)}
                   </View>
-                  <View style={[
-                    s.rolocard, s.mainCard, incomingCardStyle,
-                  ]}>
+                  <View style={[s.rolocard, s.mainCard, incomingCardStyle]}>
                     {renderDeckCardContent(incomingCard, false)}
                   </View>
                 </>
@@ -455,7 +461,7 @@ export default function DeckScreen() {
                   {renderDeckCardContent(currentCard, true)}
                 </View>
               )}
-              </View>{/* end cardAnchor */}
+              </View>
             </View>
           ) : (
             <View style={s.empty}>
@@ -465,11 +471,10 @@ export default function DeckScreen() {
             </View>
           )}
 
-          {/* Deck Controls */}
           <View style={s.deckControls}>
             <Animated.View style={{ transform: [{ scale: downBtnScale }] }}>
               <TouchableOpacity style={s.roundBtn} onPress={() => pressBtn(downBtnScale, () => navigate(1))}>
-                <Ionicons name="chevron-down" size={20} color="#fff" />
+                <Ionicons name="chevron-down" size={20} color={colors.onAccent} />
               </TouchableOpacity>
             </Animated.View>
             <View style={{ flexDirection: 'row', alignItems: 'center', minWidth: 84, justifyContent: 'center' }}>
@@ -482,7 +487,7 @@ export default function DeckScreen() {
             </View>
             <Animated.View style={{ transform: [{ scale: upBtnScale }] }}>
               <TouchableOpacity style={s.roundBtn} onPress={() => pressBtn(upBtnScale, () => navigate(-1))}>
-                <Ionicons name="chevron-up" size={20} color="#fff" />
+                <Ionicons name="chevron-up" size={20} color={colors.onAccent} />
               </TouchableOpacity>
             </Animated.View>
           </View>
@@ -492,18 +497,34 @@ export default function DeckScreen() {
         <View style={s.listArea}>
           <View style={s.sortBar}>
             <Text style={s.sortLabel}>Sort by</Text>
-            <TouchableOpacity
-              style={s.sortSelect}
-              onPress={() => {
-                const keys: SortKey[] = ['newest', 'oldest', 'name-az', 'name-za', 'company-az'];
-                const idx = keys.indexOf(sortKey);
-                setSortKey(keys[(idx + 1) % keys.length]);
-              }}
-            >
-              <Text style={s.sortText}>
-                {{ newest: 'Date (Newest)', oldest: 'Date (Oldest)', 'name-az': 'Name (A–Z)', 'name-za': 'Name (Z–A)', 'company-az': 'Company (A–Z)' }[sortKey]}
-              </Text>
-            </TouchableOpacity>
+            <View style={{ position: 'relative' }}>
+              <TouchableOpacity style={s.sortSelect} onPress={() => setShowSortMenu((v) => !v)}>
+                <Text style={s.sortText}>
+                  {{ newest: 'Date (Newest)', oldest: 'Date (Oldest)', 'name-az': 'Name (A–Z)', 'name-za': 'Name (Z–A)', 'company-az': 'Company (A–Z)' }[sortKey]}
+                </Text>
+                <Text style={s.sortChevron}>{showSortMenu ? '▲' : '▼'}</Text>
+              </TouchableOpacity>
+              {showSortMenu && (
+                <View style={s.sortDropdown}>
+                  {([
+                    ['newest', 'Date (Newest)'],
+                    ['oldest', 'Date (Oldest)'],
+                    ['name-az', 'Name (A–Z)'],
+                    ['name-za', 'Name (Z–A)'],
+                    ['company-az', 'Company (A–Z)'],
+                  ] as [SortKey, string][]).map(([key, label], i, arr) => (
+                    <TouchableOpacity
+                      key={key}
+                      style={[s.sortOption, i < arr.length - 1 && s.sortOptionBorder]}
+                      onPress={() => { setSortKey(key); setShowSortMenu(false); }}
+                    >
+                      <Text style={[s.sortOptionText, sortKey === key && s.sortOptionActive]}>{label}</Text>
+                      {sortKey === key && <Text style={s.sortOptionCheck}>✓</Text>}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
           </View>
           <FlatList
             data={sorted}
@@ -511,12 +532,12 @@ export default function DeckScreen() {
             renderItem={renderListItem}
             contentContainerStyle={{ paddingBottom: 100 }}
             showsVerticalScrollIndicator={false}
+            onScrollBeginDrag={() => setShowSortMenu(false)}
           />
         </View>
       )}
       </Animated.View>
 
-      {/* Contact Detail Sheet */}
       {selectedContact && (
         <ContactDetailSheet
           contact={selectedContact}
@@ -534,88 +555,102 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.panel, paddingHorizontal: 14 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
-  logo: { width: 32, height: 32, resizeMode: 'contain' },
-  wordmark: { fontSize: 22, fontWeight: '800', letterSpacing: -0.5, color: colors.ink },
-  summary: { fontSize: 13.5, color: colors.muted, marginTop: 2, marginBottom: 6 },
-  search: {
-    borderWidth: 1, borderColor: colors.line, borderRadius: 12, paddingHorizontal: 12,
-    paddingVertical: 10, fontSize: 14.5, color: colors.ink, backgroundColor: '#fff', marginBottom: 8,
-  },
-  toggle: {
-    flexDirection: 'row', backgroundColor: colors.bg, borderRadius: 12, padding: 3, gap: 2, marginBottom: 8,
-  },
-  toggleBtn: { flex: 1, paddingVertical: 7, borderRadius: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
-  toggleBtnBg: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.panel, borderRadius: 10, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
-  toggleActive: { backgroundColor: colors.panel, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
-  toggleText: { fontSize: 12.5, fontWeight: '700', color: colors.muted },
-  toggleTextActive: { color: colors.ink },
-  filterBar: { flexGrow: 0, marginBottom: 8 },
-  filterContent: { gap: 6, paddingRight: 16 },
-  pill: { paddingHorizontal: 18, paddingVertical: 8, borderRadius: 999, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.panel },
-  pillActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-  pillText: { fontSize: 13.5, fontWeight: '600', color: colors.muted },
-  pillTextActive: { color: '#fff' },
-  // Deck
-  deckArea: { flex: 1, justifyContent: 'center', overflow: 'visible' as const },
-  deckViewport: { justifyContent: 'center' as const, position: 'relative' as const, overflow: 'visible' as const, marginTop: 8, marginBottom: 4, paddingHorizontal: 10 },
-  cardAnchor: { height: 180, width: '100%' as unknown as number, position: 'relative' as const, overflow: 'visible' as const },
-  rolocard: {
-    backgroundColor: '#fff', borderWidth: 1, borderColor: '#edf1f6', borderRadius: 20, padding: 14,
-    shadowColor: '#18212f', shadowOffset: { width: 0, height: 16 }, shadowOpacity: 0.18, shadowRadius: 28, elevation: 6,
-    gap: 8, minHeight: 180,
-  },
-  mainCard: { position: 'absolute' as const, left: 0, right: 0, top: -30, zIndex: 5 },
-  backdropCard: { position: 'absolute' as const, left: 0, right: 0, top: 0, minHeight: 180 },
-  cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  chip: { backgroundColor: '#f0f0f2', borderWidth: 1, borderColor: '#d2d2d7', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, maxWidth: 140 },
-  chipText: { fontSize: 11, fontWeight: '600', color: '#3a3a3c' },
-  cardTab: {
-    position: 'absolute', top: -18, right: 20,
-    backgroundColor: colors.accent, width: 28, height: 22,
-    borderTopLeftRadius: 5, borderTopRightRadius: 5,
-    borderBottomLeftRadius: 0, borderBottomRightRadius: 0,
-    alignItems: 'center', justifyContent: 'center', zIndex: 10,
-  },
-  cardTabText: { color: '#fff', fontSize: 10.5, fontWeight: '800', textTransform: 'uppercase' },
-  cardName: { fontSize: 19.5, fontWeight: '800', letterSpacing: -0.3, color: colors.ink },
-  cardTitle: { fontSize: 15, color: colors.muted, marginTop: -2 },
-  cardBody: { flex: 1, gap: 8 },
-  cardMeta: { gap: 6, marginTop: 4 },
-  metaLine: { fontSize: 14.5, color: '#1f2a39' },
-  notesLine: { fontSize: 13.5, color: '#4f5b6a', lineHeight: 18 },
-  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
-  footerDate: { fontSize: 12.5, color: '#5d6a7d' },
-  catTag: { fontSize: 9.5, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase', backgroundColor: colors.accentSoft, color: colors.accent, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2, overflow: 'hidden' },
-  deckControls: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10, marginTop: 14, zIndex: 10 },
-  roundBtn: { width: 40, height: 40, borderRadius: 999, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' },
-  roundText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  countWrap: { minWidth: 84, alignItems: 'center', overflow: 'hidden' as const, height: 20 },
-  count: { textAlign: 'center', fontWeight: '700', color: '#485568', fontSize: 13.5 },
-  swipeHint: { textAlign: 'center', color: '#5e6a7c', fontSize: 12.5, marginTop: 18, marginBottom: 80 },
-  empty: { alignItems: 'center', paddingVertical: 40, gap: 8 },
-  emptyIcon: { fontSize: 48 },
-  emptyTitle: { fontSize: 17, fontWeight: '800', color: colors.ink },
-  emptyDesc: { fontSize: 13.5, color: colors.muted, textAlign: 'center', lineHeight: 20 },
-  // List
-  listArea: { flex: 1 },
-  sortBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
-  sortLabel: { fontSize: 12, color: colors.muted, fontWeight: '600' },
-  sortSelect: { borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
-  sortText: { fontSize: 12, fontWeight: '600', color: colors.muted },
-  listCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.panel,
-    borderWidth: 1, borderColor: '#e7edf5', borderRadius: 16, padding: 12, marginBottom: 8,
-    shadowColor: '#1e2a3b', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 1,
-  },
-  listAvatar: { width: 44, height: 44, borderRadius: 999, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
-  listAvatarText: { color: '#fff', fontWeight: '800', fontSize: 16 },
-  listInfo: { flex: 1 },
-  listName: { fontSize: 15, fontWeight: '700', color: colors.ink },
-  listSubtitle: { fontSize: 12.5, color: colors.muted, marginTop: 1 },
-  listDetail: { fontSize: 12, color: colors.muted, marginTop: 2, opacity: 0.75 },
-  listRight: { alignItems: 'flex-end', gap: 4 },
-  chevron: { fontSize: 16, color: colors.line },
-});
+function makeStyles(c: ColorPalette) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.bg, paddingHorizontal: 14 },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
+    headerSpacer: { width: 36 },
+    headerCenter: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    themeBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18 },
+    logo: { width: 32, height: 32, resizeMode: 'contain' },
+    wordmark: { fontSize: 22, fontWeight: '800', letterSpacing: -0.5, color: c.ink },
+    summary: { fontSize: 13.5, color: c.muted, marginTop: 2, marginBottom: 6, textAlign: 'center' },
+    searchWrap: { position: 'relative' as const, marginBottom: 8 },
+    search: {
+      borderWidth: 1, borderColor: c.line, borderRadius: 12, paddingHorizontal: 12,
+      paddingVertical: 10, fontSize: 14.5, color: c.ink, backgroundColor: c.panel,
+    },
+    searchClear: { position: 'absolute' as const, right: 10, top: 0, bottom: 0, justifyContent: 'center', paddingHorizontal: 4 },
+    searchClearText: { fontSize: 13, color: c.muted, fontWeight: '600' },
+    toggle: { flexDirection: 'row', backgroundColor: c.bgSoft, borderRadius: 12, padding: 3, gap: 2, marginBottom: 8 },
+    toggleBtn: { flex: 1, paddingVertical: 7, borderRadius: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
+    toggleBtnBg: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: c.panel, borderRadius: 10, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
+    toggleText: { fontSize: 12.5, fontWeight: '700', color: c.muted },
+    toggleTextActive: { color: c.ink },
+    filterBar: { flexGrow: 0, marginBottom: 8 },
+    filterContent: { gap: 6, paddingRight: 16 },
+    pill: { paddingHorizontal: 18, paddingVertical: 8, borderRadius: 999, borderWidth: 1.5, borderColor: c.line, backgroundColor: c.bgSoft },
+    pillActive: { backgroundColor: c.accent, borderColor: c.accent },
+    pillText: { fontSize: 13.5, fontWeight: '600', color: c.muted },
+    pillTextActive: { color: c.onAccent },
+    // Deck
+    deckArea: { flex: 1, justifyContent: 'center', overflow: 'visible' as const },
+    deckViewport: { justifyContent: 'center' as const, position: 'relative' as const, overflow: 'visible' as const, marginTop: 8, marginBottom: 4, paddingHorizontal: 10 },
+    cardAnchor: { height: 180, width: '100%' as unknown as number, position: 'relative' as const, overflow: 'visible' as const },
+    rolocard: {
+      backgroundColor: c.panel, borderWidth: 1, borderColor: c.line, borderRadius: 20, padding: 14,
+      shadowColor: '#18212f', shadowOffset: { width: 0, height: 16 }, shadowOpacity: 0.18, shadowRadius: 28, elevation: 6,
+      gap: 8, minHeight: 180,
+    },
+    mainCard: { position: 'absolute' as const, left: 0, right: 0, top: -30, zIndex: 5 },
+    backdropCard: { position: 'absolute' as const, left: 0, right: 0, top: 0, minHeight: 180 },
+    cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    chip: { backgroundColor: c.accentSoft, borderWidth: 1, borderColor: c.line, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, maxWidth: 140 },
+    chipText: { fontSize: 11, fontWeight: '600', color: c.ink },
+    cardTab: {
+      position: 'absolute', top: -18, right: 20,
+      backgroundColor: c.accent, width: 28, height: 22,
+      borderTopLeftRadius: 5, borderTopRightRadius: 5,
+      borderBottomLeftRadius: 0, borderBottomRightRadius: 0,
+      alignItems: 'center', justifyContent: 'center', zIndex: 10,
+    },
+    cardTabText: { color: c.onAccent, fontSize: 10.5, fontWeight: '800', textTransform: 'uppercase' },
+    cardName: { fontSize: 19.5, fontWeight: '800', letterSpacing: -0.3, color: c.ink },
+    cardTitle: { fontSize: 15, color: c.muted, marginTop: -2 },
+    cardBody: { flex: 1, gap: 8 },
+    cardMeta: { gap: 6, marginTop: 4 },
+    metaLine: { fontSize: 14.5, color: c.ink },
+    notesLine: { fontSize: 13.5, color: c.muted, lineHeight: 18 },
+    cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
+    footerDate: { fontSize: 12.5, color: c.muted },
+    catTag: { fontSize: 9.5, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase', backgroundColor: c.accentSoft, color: c.accent, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2, overflow: 'hidden' },
+    deckControls: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10, marginTop: 14, zIndex: 10 },
+    roundBtn: { width: 40, height: 40, borderRadius: 999, backgroundColor: c.ink, alignItems: 'center', justifyContent: 'center' },
+    count: { textAlign: 'center', fontWeight: '700', color: c.muted, fontSize: 13.5 },
+    swipeHint: { textAlign: 'center', color: c.muted, fontSize: 12.5, marginTop: 18, marginBottom: 80 },
+    empty: { alignItems: 'center', paddingVertical: 40, gap: 8 },
+    emptyTitle: { fontSize: 17, fontWeight: '800', color: c.ink },
+    emptyDesc: { fontSize: 13.5, color: c.muted, textAlign: 'center', lineHeight: 20 },
+    // List
+    listArea: { flex: 1 },
+    sortBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
+    sortLabel: { fontSize: 12, color: c.muted, fontWeight: '600' },
+    sortSelect: { borderWidth: 1, borderColor: c.line, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, flexDirection: 'row', alignItems: 'center', gap: 6 },
+    sortText: { fontSize: 12, fontWeight: '600', color: c.muted },
+    sortChevron: { fontSize: 9, color: c.muted },
+    sortDropdown: { position: 'absolute' as const, top: '100%', right: 0, marginTop: 4, backgroundColor: c.panel, borderRadius: 12, borderWidth: 1, borderColor: c.line, minWidth: 160, zIndex: 100, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 8 },
+    sortOption: { paddingHorizontal: 14, paddingVertical: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    sortOptionBorder: { borderBottomWidth: 1, borderBottomColor: c.line },
+    sortOptionText: { fontSize: 13.5, color: c.ink, fontWeight: '500' },
+    sortOptionActive: { color: c.accent, fontWeight: '700' },
+    sortOptionCheck: { fontSize: 12, color: c.accent, fontWeight: '700' },
+    listCard: {
+      flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.panel,
+      borderWidth: 1, borderColor: c.line, borderRadius: 16, padding: 12, marginBottom: 8,
+      shadowColor: '#1e2a3b', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 1,
+    },
+    listAvatar: { width: 44, height: 44, borderRadius: 999, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' },
+    listAvatarText: { color: c.onAccent, fontWeight: '800', fontSize: 16 },
+    listInfo: { flex: 1 },
+    listName: { fontSize: 15, fontWeight: '700', color: c.ink },
+    listSubtitle: { fontSize: 12.5, color: c.muted, marginTop: 1 },
+    listDetail: { fontSize: 12, color: c.muted, marginTop: 2, opacity: 0.75 },
+    listRight: { alignItems: 'flex-end', gap: 4 },
+    chevron: { fontSize: 16, color: c.line },
+    // Unused but kept for TS compat
+    toggleActive: {},
+    roundText: {},
+    countWrap: {},
+    emptyIcon: {},
+  });
+}

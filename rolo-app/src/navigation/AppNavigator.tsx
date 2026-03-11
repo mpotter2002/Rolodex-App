@@ -1,17 +1,17 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text, View, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors } from '../utils/theme';
+import { ColorPalette } from '../utils/theme';
+import { useTheme } from '../utils/ThemeContext';
 import DeckScreen from '../screens/DeckScreen';
 import ScanScreen from '../screens/ScanScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 
 const Tab = createBottomTabNavigator();
 
-function TabItem({ route, isFocused, onPress }: { route: any; isFocused: boolean; onPress: () => void }) {
+function TabItem({ route, isFocused, onPress, colors }: { route: any; isFocused: boolean; onPress: () => void; colors: ColorPalette }) {
   const bgAnim = useRef(new Animated.Value(isFocused ? 1 : 0)).current;
-  const labelAnim = useRef(new Animated.Value(isFocused ? 1 : 0)).current;
 
   useEffect(() => {
     Animated.spring(bgAnim, {
@@ -20,29 +20,19 @@ function TabItem({ route, isFocused, onPress }: { route: any; isFocused: boolean
       tension: 280,
       friction: 28,
     }).start();
-    Animated.timing(labelAnim, {
-      toValue: isFocused ? 1 : 0,
-      duration: 180,
-      useNativeDriver: false, // color interpolation needs JS driver
-    }).start();
   }, [isFocused]);
-
-  const labelColor = labelAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['#4f5b6d', colors.ink],
-  });
 
   return (
     <TouchableOpacity onPress={onPress} style={styles.tabBtn} activeOpacity={0.7}>
-      <Animated.View style={[styles.tabBtnBg, { opacity: bgAnim }]} />
-      <Animated.Text style={[styles.tabLabel, { color: labelColor }]}>
+      <Animated.View style={[styles.tabBtnBg, { opacity: bgAnim, backgroundColor: colors.bgSoft }]} />
+      <Text style={[styles.tabLabel, { color: isFocused ? colors.ink : colors.muted }]}>
         {route.name === 'Deck' ? 'Rolo' : route.name}
-      </Animated.Text>
+      </Text>
     </TouchableOpacity>
   );
 }
 
-function PlusButton({ onPress }: { onPress: () => void }) {
+function PlusButton({ onPress, colors }: { onPress: () => void; colors: ColorPalette }) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handlePress = () => {
@@ -55,8 +45,8 @@ function PlusButton({ onPress }: { onPress: () => void }) {
 
   return (
     <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-      <TouchableOpacity onPress={handlePress} style={styles.plusBtn} activeOpacity={1}>
-        <Text style={styles.plusText}>+</Text>
+      <TouchableOpacity onPress={handlePress} style={[styles.plusBtn, { backgroundColor: colors.accent }]} activeOpacity={1}>
+        <Text style={[styles.plusText, { color: colors.onAccent }]}>+</Text>
       </TouchableOpacity>
     </Animated.View>
   );
@@ -64,10 +54,12 @@ function PlusButton({ onPress }: { onPress: () => void }) {
 
 function TabBar({ state, descriptors, navigation }: any) {
   const insets = useSafeAreaInsets();
+  const { colors, isDark } = useTheme();
   const bottomOffset = Math.max(insets.bottom, 8) + 8;
+  const tabBarBg = isDark ? 'rgba(44,44,47,0.97)' : 'rgba(255,255,255,0.96)';
 
   return (
-    <View style={[styles.tabBar, { bottom: bottomOffset }]}>
+    <View style={[styles.tabBar, { bottom: bottomOffset, backgroundColor: tabBarBg, borderColor: colors.line }]}>
       {state.routes.map((route: any, index: number) => {
         const isFocused = state.index === index;
         const isPlus = route.name === 'Scan';
@@ -80,21 +72,22 @@ function TabBar({ state, descriptors, navigation }: any) {
         };
 
         if (isPlus) {
-          return <PlusButton key={route.key} onPress={onPress} />;
+          return <PlusButton key={route.key} onPress={onPress} colors={colors} />;
         }
 
-        return <TabItem key={route.key} route={route} isFocused={isFocused} onPress={onPress} />;
+        return <TabItem key={route.key} route={route} isFocused={isFocused} onPress={onPress} colors={colors} />;
       })}
     </View>
   );
 }
 
 export default function AppNavigator() {
+  const { colors } = useTheme();
   return (
     <Tab.Navigator
       tabBar={(props) => <TabBar {...props} />}
       screenOptions={{ headerShown: false }}
-      sceneContainerStyle={{ backgroundColor: '#ffffff' }}
+      sceneContainerStyle={{ backgroundColor: colors.panel }}
     >
       <Tab.Screen name="Deck" component={DeckScreen} />
       <Tab.Screen name="Scan" component={ScanScreen} />
@@ -109,9 +102,7 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
     height: 66,
-    backgroundColor: 'rgba(255,255,255,0.96)',
     borderWidth: 1,
-    borderColor: '#e8edf5',
     borderRadius: 28,
     flexDirection: 'row',
     alignItems: 'center',
@@ -133,7 +124,6 @@ const styles = StyleSheet.create({
   tabBtnBg: {
     position: 'absolute',
     top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: '#e5e5ea',
     borderRadius: 999,
   },
   tabLabel: {
@@ -144,7 +134,6 @@ const styles = StyleSheet.create({
     width: 72,
     height: 50,
     borderRadius: 14,
-    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -154,7 +143,6 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   plusText: {
-    color: '#fff',
     fontSize: 22,
     fontWeight: '800',
     lineHeight: 24,
