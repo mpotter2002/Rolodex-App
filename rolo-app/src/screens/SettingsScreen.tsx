@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
+import Constants from 'expo-constants';
 import {
-  View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal,
+  View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal, Linking,
 } from 'react-native';
 import * as ExpoContacts from 'expo-contacts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ColorPalette } from '../utils/theme';
 import { useTheme, ThemeMode } from '../utils/ThemeContext';
 import { useContacts } from '../utils/ContactsContext';
@@ -12,9 +12,6 @@ import { useAuth } from '../utils/AuthContext';
 import { supabase } from '../utils/supabase';
 import { clearAll } from '../utils/storage';
 import { Contact } from '../types/contact';
-import PaywallSheet from '../components/PaywallSheet';
-
-const PRO_KEY = 'rolo_is_pro';
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
@@ -26,7 +23,6 @@ export default function SettingsScreen() {
   const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
   const displayEmail = user?.email || '';
   const avatarLetter = displayName.charAt(0).toUpperCase();
-  const [showPaywall, setShowPaywall] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [confirmingSignOut, setConfirmingSignOut] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -39,23 +35,19 @@ export default function SettingsScreen() {
   }
   const [phoneContacts, setPhoneContacts] = useState<ExpoContacts.ExistingContact[]>([]);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
-  const [isPro, setIsProState] = useState(false);
+  const [loadingContacts, setLoadingContacts] = useState(false);
 
-  useEffect(() => {
-    AsyncStorage.getItem(PRO_KEY).then((val) => {
-      if (val === '1') setIsProState(true);
-    });
-  }, []);
-
-  async function setPro(value: boolean) {
-    setIsProState(value);
-    await AsyncStorage.setItem(PRO_KEY, value ? '1' : '0');
+  function closeImportSheet() {
+    setShowImport(false);
+    setPhoneContacts([]);
+    setCheckedIds(new Set());
   }
 
   async function handleDeleteAccount() {
     const { error } = await supabase.rpc('delete_user');
     if (error) {
       setConfirmingDelete(false);
+      showToast('Failed to delete account. Please try again.');
     } else {
       await clearAll();
       await signOut();
@@ -63,35 +55,52 @@ export default function SettingsScreen() {
   }
 
   async function handleConnectAddressBook() {
-    const { status } = await ExpoContacts.requestPermissionsAsync();
-    if (status !== 'granted') {
-      showToast('Please allow Rolo to access your contacts in Settings.');
-      return;
+    if (loadingContacts) return;
+    setLoadingContacts(true);
+    try {
+      const { status, canAskAgain } = await ExpoContacts.requestPermissionsAsync();
+
+      if (status === 'denied' || status === 'undetermined') {
+        if (!canAskAgain) {
+          // Permission permanently denied — send to Settings
+          showToast('Open Settings to allow Rolo to access your contacts.');
+          setTimeout(() => Linking.openSettings(), 1500);
+        } else {
+          showToast('Please allow Rolo to access your contacts.');
+        }
+        return;
+      }
+
+      const { data } = await ExpoContacts.getContactsAsync({
+        fields: [
+          ExpoContacts.Fields.Name,
+          ExpoContacts.Fields.PhoneNumbers,
+          ExpoContacts.Fields.Emails,
+          ExpoContacts.Fields.JobTitle,
+          ExpoContacts.Fields.Company,
+        ],
+        sort: ExpoContacts.SortTypes.LastName,
+      });
+
+      const usable = (data ?? []).filter(
+        (c) => c.name && (c.phoneNumbers?.length || c.emails?.length)
+      );
+
+      if (usable.length === 0) {
+        // iOS limited access with 0 contacts selected — open Settings to fix
+        showToast('No contacts accessible. Opening Settings to fix this…');
+        setTimeout(() => Linking.openSettings(), 1500);
+        return;
+      }
+
+      setCheckedIds(new Set(usable.map((c) => c.id).filter(Boolean) as string[]));
+      setPhoneContacts(usable);
+      setShowImport(true);
+    } catch {
+      showToast('Could not load contacts. Please try again.');
+    } finally {
+      setLoadingContacts(false);
     }
-
-    const { data } = await ExpoContacts.getContactsAsync({
-      fields: [
-        ExpoContacts.Fields.Name,
-        ExpoContacts.Fields.PhoneNumbers,
-        ExpoContacts.Fields.Emails,
-        ExpoContacts.Fields.JobTitle,
-        ExpoContacts.Fields.Company,
-      ],
-      sort: ExpoContacts.SortTypes.LastName,
-    });
-
-    const usable = data.filter(
-      (c) => c.name && (c.phoneNumbers?.length || c.emails?.length)
-    );
-
-    if (usable.length === 0) {
-      showToast('No importable contacts found on this device.');
-      return;
-    }
-
-    setCheckedIds(new Set(usable.map((c) => c.id).filter(Boolean)));
-    setPhoneContacts(usable);
-    setShowImport(true);
   }
 
   function handleImport() {
@@ -112,7 +121,7 @@ export default function SettingsScreen() {
       }));
 
     importContacts(toImport);
-    setShowImport(false);
+    closeImportSheet();
     showToast(`${toImport.length} contact${toImport.length === 1 ? '' : 's'} added to your Rolo.`);
   }
 
@@ -133,18 +142,6 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView style={[s.container, { paddingTop: insets.top + 14 }]} contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
-      {/* Pro Banner */}
-      {!isPro && (
-        <TouchableOpacity style={s.proBanner} activeOpacity={0.9} onPress={() => setShowPaywall(true)}>
-          <Text style={s.proIcon}>⚡</Text>
-          <View style={s.proText}>
-            <Text style={s.proTitle}>Upgrade to Rolo Pro</Text>
-            <Text style={s.proDesc}>Unlimited contacts, AI scanning & more</Text>
-          </View>
-          <Text style={s.proArrow}>›</Text>
-        </TouchableOpacity>
-      )}
-
       {/* Appearance */}
       <Text style={s.sectionLabel}>Appearance</Text>
       <View style={s.card}>
@@ -174,10 +171,13 @@ export default function SettingsScreen() {
           </View>
         </View>
         <Text style={s.connectDetail}>Import contacts directly from your iPhone address book.</Text>
-        <TouchableOpacity style={[s.btn, s.btnPrimary]} onPress={handleConnectAddressBook}>
-          <Text style={s.btnPrimaryText}>Import from Address Book</Text>
+        <TouchableOpacity style={[s.btn, s.btnPrimary]} onPress={handleConnectAddressBook} disabled={loadingContacts}>
+          <Text style={s.btnPrimaryText}>{loadingContacts ? 'Loading...' : 'Import from Address Book'}</Text>
         </TouchableOpacity>
       </View>
+      {toast !== '' && (
+        <View style={s.toast}><Text style={s.toastText}>{toast}</Text></View>
+      )}
 
       {/* Data */}
       <Text style={s.sectionLabel}>Data</Text>
@@ -212,9 +212,6 @@ export default function SettingsScreen() {
           <View style={{ flex: 1 }}>
             <Text style={s.accountName}>{displayName}</Text>
             <Text style={s.accountEmail}>{displayEmail}</Text>
-            <View style={[s.badge, isPro && s.badgePro]}>
-              <Text style={[s.badgeText, isPro && s.badgeTextPro]}>{isPro ? 'Pro Plan' : 'Free Plan'}</Text>
-            </View>
           </View>
         </View>
         {confirmingSignOut ? (
@@ -253,31 +250,18 @@ export default function SettingsScreen() {
         )}
       </View>
 
-      {/* Toast */}
-      {toast !== '' && (
-        <View style={s.toast}><Text style={s.toastText}>{toast}</Text></View>
-      )}
-
       {/* About */}
       <Text style={s.sectionLabel}>About</Text>
       <View style={s.card}>
         <Text style={{ fontWeight: '800', fontSize: 16.5, color: colors.ink }}>🗂️ Rolo</Text>
         <Text style={{ fontSize: 13, color: colors.muted, lineHeight: 18 }}>Scan, save, and organize your business contacts — all in one place.</Text>
-        <Text style={{ fontSize: 11.5, color: colors.muted, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 8, marginTop: 4 }}>Version 1.0  ·  Built with Expo</Text>
+        <Text style={{ fontSize: 11.5, color: colors.muted, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 8, marginTop: 4 }}>Version {Constants.expoConfig?.version ?? '1.0'}  ·  Built with Expo</Text>
       </View>
-
-      {/* Paywall */}
-      {showPaywall && (
-        <PaywallSheet
-          onClose={() => setShowPaywall(false)}
-          onPurchase={() => { setPro(true); setShowPaywall(false); }}
-        />
-      )}
 
       {/* Import Sheet */}
       {showImport && (
-        <Modal transparent animationType="slide" onRequestClose={() => setShowImport(false)}>
-          <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={() => setShowImport(false)} />
+        <Modal transparent animationType="slide" onRequestClose={closeImportSheet}>
+          <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={closeImportSheet} />
           <View style={s.importSheet}>
             <View style={s.handle} />
             <View style={s.importIcon}><Text style={{ fontSize: 28 }}>👥</Text></View>
@@ -340,13 +324,6 @@ function makeStyles(c: ColorPalette) {
     themePillActive: { backgroundColor: c.accent, borderColor: c.accent },
     themePillText: { fontSize: 13, fontWeight: '600', color: c.muted },
     themePillTextActive: { color: c.onAccent, fontWeight: '700' },
-    // Pro banner
-    proBanner: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#1d1d1f', borderRadius: 16, padding: 14 },
-    proIcon: { fontSize: 22 },
-    proText: { flex: 1 },
-    proTitle: { color: '#fff', fontWeight: '700', fontSize: 15 },
-    proDesc: { color: 'rgba(255,255,255,0.6)', fontSize: 12, marginTop: 1 },
-    proArrow: { color: 'rgba(255,255,255,0.4)', fontSize: 18 },
     connectHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     connectIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: c.accentSoft, alignItems: 'center', justifyContent: 'center' },
     connectTitle: { fontWeight: '700', fontSize: 15, color: c.ink },
@@ -357,10 +334,6 @@ function makeStyles(c: ColorPalette) {
     accountAvatarText: { color: c.onAccent, fontWeight: '800', fontSize: 17 },
     accountName: { fontWeight: '700', fontSize: 15, color: c.ink },
     accountEmail: { fontSize: 12.5, color: c.muted, marginTop: 2 },
-    badge: { backgroundColor: c.accentSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, marginTop: 4, alignSelf: 'flex-start' },
-    badgePro: { backgroundColor: c.accent },
-    badgeText: { fontSize: 9.5, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase', color: c.accent },
-    badgeTextPro: { color: c.onAccent },
     backdrop: { flex: 1, backgroundColor: 'rgba(21,24,33,0.48)' },
     importSheet: { backgroundColor: c.panel, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36, gap: 14, maxHeight: '85%' },
     handle: { width: 36, height: 4, backgroundColor: c.line, borderRadius: 999, alignSelf: 'center' },
