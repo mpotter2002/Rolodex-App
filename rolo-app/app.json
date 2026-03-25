@@ -4,21 +4,26 @@
     "slug": "rolo-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/rolo-logo.png",
-    "userInterfaceStyle": "light",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
     "scheme": "rolo",
     "splash": {
-      "image": "./assets/rolo-logo.png",
+      "image": "./assets/icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.rolo.app",
+      "bundleIdentifier": "com.mpotter.rolo",
+      "icon": {
+        "any": "./assets/icon.png",
+        "dark": "./assets/icon-dark.png"
+      },
       "infoPlist": {
         "NSCameraUsageDescription": "Rolo needs camera access to scan business cards.",
         "NSPhotoLibraryUsageDescription": "Rolo needs photo library access to import business card images.",
-        "NSContactsUsageDescription": "Rolo can import contacts from your address book."
+        "NSContactsUsageDescription": "Rolo can import contacts from your address book.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -39,6 +44,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "expo-apple-authentication",
       "expo-camera",
       [
         "expo-image-picker",
@@ -53,7 +59,16 @@
           "contactsPermission": "Rolo can import contacts from your address book."
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "16.0"
+          }
+        }
+      ],
+      "expo-web-browser"
     ],
     "extra": {
       "eas": {

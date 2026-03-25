@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import Constants from 'expo-constants';
 import {
-  View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal,
+  View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal, Linking,
 } from 'react-native';
 import * as ExpoContacts from 'expo-contacts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -35,6 +35,13 @@ export default function SettingsScreen() {
   }
   const [phoneContacts, setPhoneContacts] = useState<ExpoContacts.ExistingContact[]>([]);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+  const [loadingContacts, setLoadingContacts] = useState(false);
+
+  function closeImportSheet() {
+    setShowImport(false);
+    setPhoneContacts([]);
+    setCheckedIds(new Set());
+  }
 
   async function handleDeleteAccount() {
     const { error } = await supabase.rpc('delete_user');
@@ -48,35 +55,52 @@ export default function SettingsScreen() {
   }
 
   async function handleConnectAddressBook() {
-    const { status } = await ExpoContacts.requestPermissionsAsync();
-    if (status !== 'granted') {
-      showToast('Please allow Rolo to access your contacts in Settings.');
-      return;
+    if (loadingContacts) return;
+    setLoadingContacts(true);
+    try {
+      const { status, canAskAgain } = await ExpoContacts.requestPermissionsAsync();
+
+      if (status === 'denied' || status === 'undetermined') {
+        if (!canAskAgain) {
+          // Permission permanently denied — send to Settings
+          showToast('Open Settings to allow Rolo to access your contacts.');
+          setTimeout(() => Linking.openSettings(), 1500);
+        } else {
+          showToast('Please allow Rolo to access your contacts.');
+        }
+        return;
+      }
+
+      const { data } = await ExpoContacts.getContactsAsync({
+        fields: [
+          ExpoContacts.Fields.Name,
+          ExpoContacts.Fields.PhoneNumbers,
+          ExpoContacts.Fields.Emails,
+          ExpoContacts.Fields.JobTitle,
+          ExpoContacts.Fields.Company,
+        ],
+        sort: ExpoContacts.SortTypes.LastName,
+      });
+
+      const usable = (data ?? []).filter(
+        (c) => c.name && (c.phoneNumbers?.length || c.emails?.length)
+      );
+
+      if (usable.length === 0) {
+        // iOS limited access with 0 contacts selected — open Settings to fix
+        showToast('No contacts accessible. Opening Settings to fix this…');
+        setTimeout(() => Linking.openSettings(), 1500);
+        return;
+      }
+
+      setCheckedIds(new Set(usable.map((c) => c.id).filter(Boolean) as string[]));
+      setPhoneContacts(usable);
+      setShowImport(true);
+    } catch {
+      showToast('Could not load contacts. Please try again.');
+    } finally {
+      setLoadingContacts(false);
     }
-
-    const { data } = await ExpoContacts.getContactsAsync({
-      fields: [
-        ExpoContacts.Fields.Name,
-        ExpoContacts.Fields.PhoneNumbers,
-        ExpoContacts.Fields.Emails,
-        ExpoContacts.Fields.JobTitle,
-        ExpoContacts.Fields.Company,
-      ],
-      sort: ExpoContacts.SortTypes.LastName,
-    });
-
-    const usable = data.filter(
-      (c) => c.name && (c.phoneNumbers?.length || c.emails?.length)
-    );
-
-    if (usable.length === 0) {
-      showToast('No importable contacts found on this device.');
-      return;
-    }
-
-    setCheckedIds(new Set(usable.map((c) => c.id).filter(Boolean)));
-    setPhoneContacts(usable);
-    setShowImport(true);
   }
 
   function handleImport() {
@@ -97,7 +121,7 @@ export default function SettingsScreen() {
       }));
 
     importContacts(toImport);
-    setShowImport(false);
+    closeImportSheet();
     showToast(`${toImport.length} contact${toImport.length === 1 ? '' : 's'} added to your Rolo.`);
   }
 
@@ -147,10 +171,13 @@ export default function SettingsScreen() {
           </View>
         </View>
         <Text style={s.connectDetail}>Import contacts directly from your iPhone address book.</Text>
-        <TouchableOpacity style={[s.btn, s.btnPrimary]} onPress={handleConnectAddressBook}>
-          <Text style={s.btnPrimaryText}>Import from Address Book</Text>
+        <TouchableOpacity style={[s.btn, s.btnPrimary]} onPress={handleConnectAddressBook} disabled={loadingContacts}>
+          <Text style={s.btnPrimaryText}>{loadingContacts ? 'Loading...' : 'Import from Address Book'}</Text>
         </TouchableOpacity>
       </View>
+      {toast !== '' && (
+        <View style={s.toast}><Text style={s.toastText}>{toast}</Text></View>
+      )}
 
       {/* Data */}
       <Text style={s.sectionLabel}>Data</Text>
@@ -223,11 +250,6 @@ export default function SettingsScreen() {
         )}
       </View>
 
-      {/* Toast */}
-      {toast !== '' && (
-        <View style={s.toast}><Text style={s.toastText}>{toast}</Text></View>
-      )}
-
       {/* About */}
       <Text style={s.sectionLabel}>About</Text>
       <View style={s.card}>
@@ -238,8 +260,8 @@ export default function SettingsScreen() {
 
       {/* Import Sheet */}
       {showImport && (
-        <Modal transparent animationType="slide" onRequestClose={() => setShowImport(false)}>
-          <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={() => setShowImport(false)} />
+        <Modal transparent animationType="slide" onRequestClose={closeImportSheet}>
+          <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={closeImportSheet} />
           <View style={s.importSheet}>
             <View style={s.handle} />
             <View style={s.importIcon}><Text style={{ fontSize: 28 }}>👥</Text></View>

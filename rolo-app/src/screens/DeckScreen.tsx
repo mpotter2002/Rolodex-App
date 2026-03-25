@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
-  StyleSheet, Image, ScrollView, Animated, useWindowDimensions, PanResponder, Keyboard,
+  StyleSheet, Image, ScrollView, Animated, useWindowDimensions, PanResponder, Keyboard, Easing, useColorScheme,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,6 +14,7 @@ import ContactDetailSheet from '../components/ContactDetailSheet';
 import BouncyPress from '../components/BouncyPress';
 
 type SortKey = 'newest' | 'oldest' | 'name-az' | 'name-za' | 'company-az';
+const CARD_FRAME_HEIGHT = 292;
 
 export default function DeckScreen() {
   const insets = useSafeAreaInsets();
@@ -21,6 +22,11 @@ export default function DeckScreen() {
   const vpHeight = Math.max(160, Math.min(420, windowHeight - 370));
   const { contacts } = useContacts();
   const { colors, themeMode, setThemeMode } = useTheme();
+  const systemColorScheme = useColorScheme();
+  const isDark = themeMode === 'dark' || (themeMode === 'system' && systemColorScheme === 'dark');
+  const logoSource = isDark
+    ? require('../../assets/rolo-logo-dark.png')
+    : require('../../assets/rolo-logo-light.png');
   const s = useMemo(() => makeStyles(colors), [colors]);
 
   const cycleTheme = useCallback(() => {
@@ -78,6 +84,7 @@ export default function DeckScreen() {
   const upBtnScale = useRef(new Animated.Value(1)).current;
   const countY = useRef(new Animated.Value(0)).current;
   const countOpacity = useRef(new Animated.Value(1)).current;
+  const transitionProgress = useRef(new Animated.Value(0)).current;
   const [displayIndex, setDisplayIndex] = useState(0);
   const prevDeckIndexRef = useRef<number | null>(null);
 
@@ -99,9 +106,7 @@ export default function DeckScreen() {
     action();
   }, []);
 
-  const animationFrameRef = useRef<number | null>(null);
   const [animating, setAnimating] = useState(false);
-  const [flipProgress, setFlipProgress] = useState(0);
   const [incomingIndex, setIncomingIndex] = useState<number | null>(null);
   const [navDir, setNavDir] = useState<1 | -1>(1);
   const currentCard = filtered[deckIndex] || null;
@@ -117,13 +122,7 @@ export default function DeckScreen() {
     if (incomingIndex !== null && incomingIndex >= filtered.length) setIncomingIndex(null);
   }, [filtered.length, deckIndex, incomingIndex]);
 
-  useEffect(() => {
-    return () => {
-      if (animationFrameRef.current !== null) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-    };
-  }, []);
+  useEffect(() => () => transitionProgress.stopAnimation(), [transitionProgress]);
 
   useEffect(() => {
     if (prevDeckIndexRef.current === null) {
@@ -152,40 +151,37 @@ export default function DeckScreen() {
     const direction: 1 | -1 = dir > 0 ? 1 : -1;
     const nextIndex = (deckIndex + direction + filtered.length) % filtered.length;
 
-    if (animationFrameRef.current !== null) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-
     setNavDir(direction);
     setIncomingIndex(nextIndex);
     setAnimating(true);
-    setFlipProgress(0);
+    transitionProgress.stopAnimation();
+    transitionProgress.setValue(0);
 
-    const durationMs = 600;
-    let startFrame: number | null = null;
-
-    const step = (frameTime: number) => {
-      if (startFrame === null) startFrame = frameTime;
-      const linear = Math.min(1, (frameTime - startFrame) / durationMs);
-      setFlipProgress(linear);
-
-      if (linear < 1) {
-        animationFrameRef.current = requestAnimationFrame(step);
+    Animated.timing(transitionProgress, {
+      toValue: 1,
+      duration: 720,
+      easing: Easing.bezier(0.2, 0.78, 0.2, 1),
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) {
+        setDeckIndex(nextIndex);
+        setIncomingIndex(null);
+        setAnimating(false);
         return;
       }
-
-      animationFrameRef.current = null;
-      setDeckIndex(nextIndex);
+      transitionProgress.stopAnimation();
       setIncomingIndex(null);
       setAnimating(false);
-      setFlipProgress(0);
-    };
+      transitionProgress.setValue(0);
+    });
+  }, [filtered.length, deckIndex, animating, transitionProgress]);
 
-    animationFrameRef.current = requestAnimationFrame(step);
-  }, [filtered.length, deckIndex, animating]);
-
-  function renderDeckCardContent(contact: Contact, interactive: boolean) {
+  function renderDeckCardContent(
+    contact: Contact,
+    interactive: boolean,
+    showTab = true,
+    tabOpacity?: number | Animated.AnimatedInterpolation<number>,
+  ) {
     const initial = (contact.name || '?').charAt(0).toUpperCase();
     const tabColor = contact.cardColors ? { backgroundColor: contact.cardColors.accentHex } : null;
 
@@ -213,9 +209,11 @@ export default function DeckScreen() {
 
     return (
       <>
-        <View style={[s.cardTab, tabColor]}>
-          <Text style={s.cardTabText}>{initial}</Text>
-        </View>
+        {showTab && (
+          <Animated.View style={[s.cardTab, tabColor, tabOpacity !== undefined ? { opacity: tabOpacity } : null]}>
+            <Text style={s.cardTabText}>{initial}</Text>
+          </Animated.View>
+        )}
         {interactive ? (
           <TouchableOpacity activeOpacity={0.85} onPress={() => setSelectedContact(contact)} style={s.cardBody}>
             {body}
@@ -224,6 +222,27 @@ export default function DeckScreen() {
           <View style={s.cardBody}>{body}</View>
         )}
       </>
+    );
+  }
+
+  function renderFloatingCardTab(
+    contact: Contact,
+    opacity: number | Animated.AnimatedInterpolation<number> = 1,
+    style?: any,
+  ) {
+    return (
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          s.cardTab,
+          s.floatingCardTab,
+          contact.cardColors ? { backgroundColor: contact.cardColors.accentHex } : null,
+          { opacity },
+          style,
+        ]}
+      >
+        <Text style={s.cardTabText}>{(contact.name || '?').charAt(0).toUpperCase()}</Text>
+      </Animated.View>
     );
   }
 
@@ -267,23 +286,54 @@ export default function DeckScreen() {
   function renderBackdropCards() {
     const baseGap = 42;
     const firstPad = 38;
-    const easeOut = animating ? 1 - Math.pow(1 - flipProgress, 2) : 0;
+    const backdropTravel = 18;
     const yFor = (d: number) => d === 1 ? -(baseGap + firstPad) : -(baseGap + firstPad + baseGap * (d - 1));
     const opFor = (d: number) => d === 1 ? 0.82 : d === 2 ? 0.50 : d === 3 ? 0.28 : 0.14;
     const blurFor = (d: number) => d === 1 ? 0.12 : d === 2 ? 0.07 : 0.03;
+    const tabOpacityFor = (depth: number) => {
+      const resting = depth === 1 ? 0.92 : depth === 2 ? 0.72 : 0.55;
+      return animating
+        ? transitionProgress.interpolate({
+            inputRange: [0, 0.35, 0.75, 1],
+            outputRange: [resting, resting * 0.5, resting * 0.25, resting],
+            extrapolate: 'clamp',
+          })
+        : resting;
+    };
 
-    const makeCard = (contact: Contact, depth: number, translateY: number, opacity: number, key: string) => (
-      <View key={key} style={[s.backdropCard, {
+    const makeCard = (
+      contact: Contact,
+      depth: number,
+      translateY: number | Animated.AnimatedInterpolation<number>,
+      opacity: number | Animated.AnimatedInterpolation<number>,
+      key: string,
+      zIndex: number,
+    ) => (
+      <Animated.View
+        key={key}
+        shouldRasterizeIOS={animating}
+        renderToHardwareTextureAndroid={animating}
+        style={[s.backdropCard, {
         transform: [{ translateY }, { scale: 1 - depth * 0.04 }],
-        opacity, zIndex: 4 - depth,
+        opacity, zIndex,
         backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.line,
         borderRadius: 20, padding: 14,
         shadowColor: '#18212f', shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: blurFor(depth), shadowRadius: 18, elevation: 2,
-      }]} pointerEvents="none">
-        <View style={[s.cardTab, contact.cardColors ? { backgroundColor: contact.cardColors.accentHex } : null]}>
-          <Text style={s.cardTabText}>{(contact.name || '?').charAt(0).toUpperCase()}</Text>
-        </View>
+        shadowOpacity: animating ? blurFor(depth) * 0.45 : blurFor(depth),
+        shadowRadius: 18,
+        elevation: animating ? 1 : 2,
+      }]}
+        pointerEvents="none"
+      >
+        <Animated.View
+          style={[
+            s.cardTab,
+            contact.cardColors ? { backgroundColor: contact.cardColors.accentHex } : null,
+            { opacity: tabOpacityFor(depth) },
+          ]}
+        >
+            <Text style={s.cardTabText}>{(contact.name || '?').charAt(0).toUpperCase()}</Text>
+        </Animated.View>
         {depth <= 2 && (
           <View style={{ marginTop: 10, gap: 4 }}>
             <Text style={{ fontSize: depth === 1 ? 13.5 : 12, fontWeight: '800', color: colors.ink }} numberOfLines={1}>
@@ -296,22 +346,47 @@ export default function DeckScreen() {
             ) : null}
           </View>
         )}
-      </View>
+      </Animated.View>
     );
 
-    const cards: JSX.Element[] = [];
+    const cards: React.ReactElement[] = [];
 
     if (animating) {
       for (const { contact, offset } of getBackdropCards(deckIndex)) {
         const d = Math.abs(offset);
-        cards.push(makeCard(contact, d, yFor(d) + navDir * baseGap * easeOut, opFor(d) * (1 - easeOut), `bg-old-${d}`));
+        cards.push(makeCard(
+          contact,
+          d,
+          transitionProgress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [yFor(d), yFor(d) + (navDir > 0 ? backdropTravel : -backdropTravel)],
+          }),
+          transitionProgress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [opFor(d), 0],
+          }),
+          `bg-old-${d}`,
+          8 - d,
+        ));
       }
     }
 
     for (const { contact, offset } of getBackdropCards(animating && incomingIndex !== null ? incomingIndex : undefined)) {
       const d = Math.abs(offset);
-      const arriveShift = animating ? -navDir * baseGap * (1 - easeOut) : 0;
-      cards.push(makeCard(contact, d, yFor(d) + arriveShift, animating ? opFor(d) * easeOut : opFor(d), `bg-new-${d}`));
+      cards.push(makeCard(
+        contact,
+        d,
+        animating ? transitionProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: navDir > 0 ? [yFor(d) - backdropTravel, yFor(d)] : [yFor(d) + backdropTravel, yFor(d)],
+        }) : yFor(d),
+        animating ? transitionProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, opFor(d)],
+        }) : opFor(d),
+        `bg-new-${d}`,
+        12 - d,
+      ));
     }
 
     return cards;
@@ -332,42 +407,160 @@ export default function DeckScreen() {
     })
   ).current;
 
-  const FLIP_TOTAL_MS = 600;
-  const EXIT_MS = 380;
-  const ENTER_MS = 550;
-
-  const exitRaw = Math.min(1, (flipProgress * FLIP_TOTAL_MS) / EXIT_MS);
-  const enterRaw = Math.min(1, (flipProgress * FLIP_TOTAL_MS) / ENTER_MS);
-
-  const easeInCubic = (t: number) => t * t * t;
-  const easeOutSpring = (t: number) => {
-    const c1 = 1.1;
-    const c3 = c1 + 1;
-    return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
-  };
-
-  const exitT = easeInCubic(exitRaw);
-  const enterT = easeOutSpring(enterRaw);
-
-  const pivotOrigin = 'center bottom';
-  const exitAngle = navDir > 0 ? -90 * exitT : 90 * exitT;
-  const enterStartAngle = navDir > 0 ? 90 : -90;
-  const enterAngle = enterStartAngle * (1 - enterT);
-
-  const outgoingZ = navDir > 0 ? 6 : 5;
-  const incomingZ = navDir > 0 ? 5 : 6;
-
+  const CARD_PIVOT_OFFSET = CARD_FRAME_HEIGHT / 2;
+  const isSwipeDown = navDir > 0;
+  const outgoingZIndex = isSwipeDown ? 31 : 30;
+  const incomingZIndex = isSwipeDown ? 30 : 31;
+  const outgoingTransform = [
+    ...(isSwipeDown ? [
+      {
+        translateY: CARD_PIVOT_OFFSET,
+      },
+      {
+        scaleY: transitionProgress.interpolate({
+          inputRange: [0, 0.84, 1],
+          outputRange: [1, 0.76, 0.32],
+          extrapolate: 'clamp',
+        }),
+      },
+      {
+        translateY: -CARD_PIVOT_OFFSET,
+      },
+      {
+        translateY: transitionProgress.interpolate({
+          inputRange: [0, 0.58, 1],
+          outputRange: [0, -4, 0],
+          extrapolate: 'clamp',
+        }),
+      },
+      {
+        scaleX: transitionProgress.interpolate({
+          inputRange: [0, 0.62, 1],
+          outputRange: [1, 1.025, 1.035],
+          extrapolate: 'clamp',
+        }),
+      },
+    ] : [
+      {
+        translateY: transitionProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, -18],
+          extrapolate: 'clamp',
+        }),
+      },
+      {
+        scale: transitionProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [1, 0.968],
+          extrapolate: 'clamp',
+        }),
+      },
+    ]),
+  ];
   const outgoingCardStyle = {
-    zIndex: outgoingZ,
-    transformOrigin: pivotOrigin,
-    transform: [{ perspective: 900 }, { rotateX: `${exitAngle}deg` }],
+    zIndex: outgoingZIndex,
+    opacity: transitionProgress.interpolate({
+      inputRange: isSwipeDown ? [0, 0.9, 1] : [0, 0.62, 0.84, 1],
+      outputRange: isSwipeDown ? [1, 1, 0] : [1, 1, 0.24, 0],
+      extrapolate: 'clamp',
+    }),
+    shadowOpacity: 0.08,
+    shadowRadius: 28,
+    elevation: 2,
+    transform: outgoingTransform,
   };
-  const incomingOpacity = animating ? Math.min(1, enterRaw / 0.15) : 1;
+  const outgoingTabOpacity = transitionProgress.interpolate({
+    inputRange: isSwipeDown ? [0, 0.28, 0.65, 1] : [0, 0.04, 0.12, 1],
+    outputRange: isSwipeDown ? [1, 0.45, 0.12, 0] : [1, 0.02, 0, 0],
+    extrapolate: 'clamp',
+  });
+  const outgoingTabStyle = {
+    transform: [
+      {
+        translateY: transitionProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, isSwipeDown ? 8 : -18],
+          extrapolate: 'clamp',
+        }),
+      },
+    ],
+  };
+  const incomingShellScaleY = transitionProgress.interpolate({
+    inputRange: [0, 0.78, 1],
+    outputRange: [0.34, 0.82, 1],
+    extrapolate: 'clamp',
+  });
+  const incomingContentStyle = isSwipeDown ? { flex: 1 } : {
+    flex: 1,
+    opacity: transitionProgress.interpolate({
+      inputRange: [0, 0.08, 0.22, 1],
+      outputRange: [0.72, 0.9, 1, 1],
+      extrapolate: 'clamp',
+    }),
+    transform: [
+      {
+        scaleY: transitionProgress.interpolate({
+          inputRange: [0, 0.78, 1],
+          outputRange: [1.9, 1.12, 1],
+          extrapolate: 'clamp',
+        }),
+      },
+      {
+        translateY: transitionProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [18, 0],
+          extrapolate: 'clamp',
+        }),
+      },
+    ],
+  };
   const incomingCardStyle = {
-    zIndex: incomingZ,
-    transformOrigin: pivotOrigin,
-    opacity: incomingOpacity,
-    transform: [{ perspective: 900 }, { rotateX: `${enterAngle}deg` }],
+    zIndex: incomingZIndex,
+    opacity: 1,
+    shadowOpacity: 0.16,
+    shadowRadius: 28,
+    elevation: 3,
+    transform: isSwipeDown ? undefined : [
+      {
+        translateY: CARD_PIVOT_OFFSET,
+      },
+      {
+        scaleY: incomingShellScaleY,
+      },
+      {
+        translateY: -CARD_PIVOT_OFFSET,
+      },
+      {
+        translateY: transitionProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [18, 0],
+          extrapolate: 'clamp',
+        }),
+      },
+      {
+        scaleX: transitionProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [1.04, 1],
+          extrapolate: 'clamp',
+        }),
+      },
+    ],
+  };
+  const incomingTabOpacity = transitionProgress.interpolate({
+    inputRange: isSwipeDown ? [0, 0.35, 1] : [0, 0.88, 1],
+    outputRange: isSwipeDown ? [0.35, 0.65, 1] : [0, 0, 1],
+    extrapolate: 'clamp',
+  });
+  const incomingTabStyle = {
+    transform: [
+      {
+        translateY: transitionProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [isSwipeDown ? -12 : 24, 0],
+          extrapolate: 'clamp',
+        }),
+      },
+    ],
   };
 
   return (
@@ -376,7 +569,7 @@ export default function DeckScreen() {
         <View style={s.header}>
           <View style={s.headerSpacer} />
           <View style={s.headerCenter}>
-            <Image source={require('../../assets/rolo-logo.png')} style={s.logo} />
+            <Image source={logoSource} style={s.logo} />
             <Text style={s.wordmark}>Rolo</Text>
           </View>
           <TouchableOpacity style={s.themeBtn} onPress={cycleTheme} activeOpacity={0.7}>
@@ -442,23 +635,30 @@ export default function DeckScreen() {
           {currentCard ? (
             <View style={[s.deckViewport, { height: vpHeight }]} {...panResponder.panHandlers}>
               <View style={s.cardAnchor}>
+              {!animating && currentCard ? renderFloatingCardTab(currentCard, 1, { zIndex: 22 }) : null}
               {renderBackdropCards()}
               {animating && incomingCard ? (
                 <>
-                  <View style={[s.rolocard, s.mainCard, outgoingCardStyle]}>
-                    {renderDeckCardContent(currentCard, false)}
-                  </View>
-                  <View style={[s.rolocard, s.mainCard, incomingCardStyle]}>
-                    {renderDeckCardContent(incomingCard, false)}
-                  </View>
+                  {renderFloatingCardTab(currentCard, outgoingTabOpacity, [outgoingTabStyle, { zIndex: outgoingZIndex + 2 }])}
+                  {renderFloatingCardTab(incomingCard, incomingTabOpacity, [incomingTabStyle, { zIndex: incomingZIndex + 2 }])}
+                  <Animated.View
+                    shouldRasterizeIOS
+                    renderToHardwareTextureAndroid
+                    style={[s.rolocard, s.mainCard, s.animatedCard, outgoingCardStyle]}
+                  >
+                    {renderDeckCardContent(currentCard, false, false)}
+                  </Animated.View>
+                  <Animated.View
+                    style={[s.rolocard, s.mainCard, s.animatedCard, incomingCardStyle]}
+                  >
+                    <Animated.View style={incomingContentStyle}>
+                      {renderDeckCardContent(incomingCard, false, false)}
+                    </Animated.View>
+                  </Animated.View>
                 </>
               ) : (
-                <View style={[s.rolocard, s.mainCard, {
-                  zIndex: 5,
-                  transformOrigin: 'center bottom',
-                  transform: [{ perspective: 900 }, { rotateX: '0deg' }],
-                }]}>
-                  {renderDeckCardContent(currentCard, true)}
+                <View style={[s.rolocard, s.mainCard]}>
+                  {renderDeckCardContent(currentCard, true, false)}
                 </View>
               )}
               </View>
@@ -594,10 +794,11 @@ function makeStyles(c: ColorPalette) {
     rolocard: {
       backgroundColor: c.panel, borderWidth: 1, borderColor: c.line, borderRadius: 20, padding: 14,
       shadowColor: '#18212f', shadowOffset: { width: 0, height: 16 }, shadowOpacity: 0.18, shadowRadius: 28, elevation: 6,
-      gap: 8, minHeight: 180,
+      gap: 8, height: CARD_FRAME_HEIGHT,
     },
-    mainCard: { position: 'absolute' as const, left: 0, right: 0, top: -30, zIndex: 5 },
-    backdropCard: { position: 'absolute' as const, left: 0, right: 0, top: 0, minHeight: 180 },
+    animatedCard: { backfaceVisibility: 'hidden' as const },
+    mainCard: { position: 'absolute' as const, left: 0, right: 0, top: -30, zIndex: 20 },
+    backdropCard: { position: 'absolute' as const, left: 0, right: 0, top: 0, height: CARD_FRAME_HEIGHT },
     cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     chip: { backgroundColor: c.accentSoft, borderWidth: 1, borderColor: c.line, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, maxWidth: 140 },
     chipText: { fontSize: 11, fontWeight: '600', color: c.ink },
@@ -608,6 +809,7 @@ function makeStyles(c: ColorPalette) {
       borderBottomLeftRadius: 0, borderBottomRightRadius: 0,
       alignItems: 'center', justifyContent: 'center', zIndex: 10,
     },
+    floatingCardTab: { top: -48 },
     cardTabText: { color: c.onAccent, fontSize: 10.5, fontWeight: '800', textTransform: 'uppercase' },
     cardName: { fontSize: 19.5, fontWeight: '800', letterSpacing: -0.3, color: c.ink },
     cardTitle: { fontSize: 15, color: c.muted, marginTop: -2 },
