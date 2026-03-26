@@ -71,6 +71,7 @@
       "expo-web-browser"
     ],
     "extra": {
+      "debugBuildLabel": "import-sheet-drag-v3",
       "eas": {
         "projectId": "3ddc2c47-c0df-49b5-8ece-606c9b505192"
       }

@@ -86,8 +86,10 @@ export default function AppNavigator() {
   return (
     <Tab.Navigator
       tabBar={(props) => <TabBar {...props} />}
-      screenOptions={{ headerShown: false }}
-      sceneContainerStyle={{ backgroundColor: colors.panel }}
+      screenOptions={{
+        headerShown: false,
+        sceneStyle: { backgroundColor: colors.panel },
+      }}
     >
       <Tab.Screen name="Deck" component={DeckScreen} />
       <Tab.Screen name="Scan" component={ScanScreen} />

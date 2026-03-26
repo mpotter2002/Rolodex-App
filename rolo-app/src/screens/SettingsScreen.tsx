@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import Constants from 'expo-constants';
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal, Linking,
+  TextInput, Animated, PanResponder,
 } from 'react-native';
 import * as ExpoContacts from 'expo-contacts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,6 +20,9 @@ export default function SettingsScreen() {
   const { user, signOut } = useAuth();
   const { colors, themeMode, setThemeMode } = useTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
+  const debugBuildLabel = Constants.expoConfig?.extra?.debugBuildLabel ?? 'unknown';
+  const appVersion = Constants.expoConfig?.version ?? Constants.nativeApplicationVersion ?? '1.0';
+  const nativeBuild = Constants.nativeBuildVersion ?? 'dev';
 
   const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
   const displayEmail = user?.email || '';
@@ -28,6 +32,7 @@ export default function SettingsScreen() {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [toast, setToast] = useState('');
+  const [contactSearch, setContactSearch] = useState('');
 
   function showToast(msg: string) {
     setToast(msg);
@@ -36,12 +41,53 @@ export default function SettingsScreen() {
   const [phoneContacts, setPhoneContacts] = useState<ExpoContacts.ExistingContact[]>([]);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [loadingContacts, setLoadingContacts] = useState(false);
+  const importBackdropOpacity = useRef(new Animated.Value(0)).current;
+  const importSheetBaseY = useRef(new Animated.Value(600)).current;
+  const importDragY = useRef(new Animated.Value(0)).current;
 
-  function closeImportSheet() {
+  const resetImportSheet = useCallback(() => {
+    importBackdropOpacity.setValue(0);
+    importSheetBaseY.setValue(600);
+    importDragY.setValue(0);
     setShowImport(false);
     setPhoneContacts([]);
     setCheckedIds(new Set());
-  }
+    setContactSearch('');
+  }, [importBackdropOpacity, importDragY, importSheetBaseY]);
+
+  const animateImportOpen = useCallback(() => {
+    importBackdropOpacity.setValue(0);
+    importSheetBaseY.setValue(600);
+    importDragY.setValue(0);
+    Animated.timing(importBackdropOpacity, {
+      toValue: 1,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+    Animated.spring(importSheetBaseY, {
+      toValue: 0,
+      tension: 68,
+      friction: 14,
+      useNativeDriver: true,
+    }).start();
+  }, [importBackdropOpacity, importDragY, importSheetBaseY]);
+
+  const closeImportSheet = useCallback(() => {
+    Animated.parallel([
+      Animated.timing(importBackdropOpacity, {
+        toValue: 0,
+        duration: 180,
+        useNativeDriver: true,
+      }),
+      Animated.timing(importSheetBaseY, {
+        toValue: 600,
+        duration: 260,
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
+      if (finished) resetImportSheet();
+    });
+  }, [importBackdropOpacity, importSheetBaseY, resetImportSheet]);
 
   async function handleDeleteAccount() {
     const { error } = await supabase.rpc('delete_user');
@@ -96,6 +142,7 @@ export default function SettingsScreen() {
       setCheckedIds(new Set(usable.map((c) => c.id).filter(Boolean) as string[]));
       setPhoneContacts(usable);
       setShowImport(true);
+      requestAnimationFrame(animateImportOpen);
     } catch {
       showToast('Could not load contacts. Please try again.');
     } finally {
@@ -139,6 +186,60 @@ export default function SettingsScreen() {
     { key: 'light', label: 'Light' },
     { key: 'dark', label: 'Dark' },
   ];
+
+  const filteredPhoneContacts = useMemo(() => {
+    const query = contactSearch.trim().toLowerCase();
+    if (!query) return phoneContacts;
+
+    return phoneContacts.filter((contact) => {
+      const haystack = [
+        contact.name,
+        contact.company,
+        contact.jobTitle,
+        contact.phoneNumbers?.[0]?.number,
+        contact.emails?.[0]?.email,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return haystack.includes(query);
+    });
+  }, [contactSearch, phoneContacts]);
+
+  const importPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dy) > 4,
+        onPanResponderMove: (_, gesture) => {
+          const dy = gesture.dy > 0 ? gesture.dy : gesture.dy * 0.15;
+          importDragY.setValue(dy);
+        },
+        onPanResponderRelease: (_, gesture) => {
+          if (gesture.dy > 120 || gesture.vy > 1.1) {
+            closeImportSheet();
+            return;
+          }
+
+          Animated.spring(importDragY, {
+            toValue: 0,
+            useNativeDriver: true,
+            tension: 180,
+            friction: 18,
+          }).start();
+        },
+        onPanResponderTerminate: () => {
+          Animated.spring(importDragY, {
+            toValue: 0,
+            useNativeDriver: true,
+            tension: 180,
+            friction: 18,
+          }).start();
+        },
+      }),
+    [closeImportSheet, importDragY],
+  );
 
   return (
     <ScrollView style={[s.container, { paddingTop: insets.top + 14 }]} contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
@@ -255,25 +356,51 @@ export default function SettingsScreen() {
       <View style={s.card}>
         <Text style={{ fontWeight: '800', fontSize: 16.5, color: colors.ink }}>🗂️ Rolo</Text>
         <Text style={{ fontSize: 13, color: colors.muted, lineHeight: 18 }}>Scan, save, and organize your business contacts — all in one place.</Text>
-        <Text style={{ fontSize: 11.5, color: colors.muted, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 8, marginTop: 4 }}>Version {Constants.expoConfig?.version ?? '1.0'}  ·  Built with Expo</Text>
+        <Text style={{ fontSize: 11.5, color: colors.muted, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 8, marginTop: 4 }}>
+          Version {appVersion} ({nativeBuild})  ·  Built with Expo
+        </Text>
+        <Text style={s.debugLabel}>Debug build: {debugBuildLabel}</Text>
       </View>
 
       {/* Import Sheet */}
       {showImport && (
-        <Modal transparent animationType="slide" onRequestClose={closeImportSheet}>
-          <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={closeImportSheet} />
-          <View style={s.importSheet}>
-            <View style={s.handle} />
-            <View style={s.importIcon}><Text style={{ fontSize: 28 }}>👥</Text></View>
-            <Text style={s.importTitle}>Import Phone Contacts</Text>
-            <Text style={s.importDesc}>
-              {checkedIds.size} of {phoneContacts.length} contacts selected
-            </Text>
+        <Modal transparent animationType="none" onRequestClose={closeImportSheet}>
+          <View style={s.modalRoot}>
+            <Animated.View style={[s.backdrop, { opacity: importBackdropOpacity }]}>
+              <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={closeImportSheet} />
+            </Animated.View>
+            <Animated.View style={[s.importSheet, { transform: [{ translateY: Animated.add(importSheetBaseY, importDragY) }] }]}>
+            <View style={s.importHandleHitArea} {...importPanResponder.panHandlers}>
+              <View style={s.handle} />
+            </View>
+            <View style={s.importHeaderBlock}>
+              <View style={s.importIcon}><Text style={{ fontSize: 28 }}>👥</Text></View>
+              <Text style={s.importTitle}>Import Phone Contacts</Text>
+              <Text style={s.importDesc}>
+                {checkedIds.size} of {phoneContacts.length} contacts selected
+              </Text>
+            </View>
+            <View style={s.searchWrap}>
+              <TextInput
+                style={s.searchInput}
+                value={contactSearch}
+                onChangeText={setContactSearch}
+                placeholder="Search contacts by name, email, phone, or company"
+                placeholderTextColor={colors.muted}
+                autoCapitalize="words"
+                autoCorrect={false}
+              />
+            </View>
             <ScrollView style={s.importList} showsVerticalScrollIndicator={false}>
-              {phoneContacts.map((c, i) => (
+              {filteredPhoneContacts.length === 0 ? (
+                <View style={s.emptyState}>
+                  <Text style={s.emptyStateTitle}>No matching contacts</Text>
+                  <Text style={s.emptyStateText}>Try a different name, company, email, or phone number.</Text>
+                </View>
+              ) : filteredPhoneContacts.map((c, i) => (
                 <TouchableOpacity
                   key={c.id || i}
-                  style={[s.importRow, i < phoneContacts.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.line }]}
+                  style={[s.importRow, i < filteredPhoneContacts.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.line }]}
                   onPress={() => c.id && toggleContact(c.id)}
                 >
                   <View style={s.importAvatar}>
@@ -296,9 +423,10 @@ export default function SettingsScreen() {
             <TouchableOpacity style={[s.btn, s.btnPrimary]} onPress={handleImport}>
               <Text style={s.btnPrimaryText}>Import {checkedIds.size} Contact{checkedIds.size === 1 ? '' : 's'}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[s.btn, s.btnSubtle]} onPress={() => setShowImport(false)}>
+            <TouchableOpacity style={[s.btn, s.btnSubtle]} onPress={closeImportSheet}>
               <Text style={[s.btnSubtleText, { textAlign: 'center' }]}>Cancel</Text>
             </TouchableOpacity>
+            </Animated.View>
           </View>
         </Modal>
       )}
@@ -334,23 +462,71 @@ function makeStyles(c: ColorPalette) {
     accountAvatarText: { color: c.onAccent, fontWeight: '800', fontSize: 17 },
     accountName: { fontWeight: '700', fontSize: 15, color: c.ink },
     accountEmail: { fontSize: 12.5, color: c.muted, marginTop: 2 },
-    backdrop: { flex: 1, backgroundColor: 'rgba(21,24,33,0.48)' },
-    importSheet: { backgroundColor: c.panel, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36, gap: 14, maxHeight: '85%' },
+    modalRoot: { flex: 1, justifyContent: 'flex-end' },
+    backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(21,24,33,0.48)' },
+    importSheet: {
+      backgroundColor: c.panel,
+      borderTopLeftRadius: 34,
+      borderTopRightRadius: 34,
+      borderTopWidth: 1,
+      borderColor: c.line,
+      paddingHorizontal: 20,
+      paddingBottom: 36,
+      gap: 14,
+      maxHeight: '88%',
+      shadowColor: '#10141c',
+      shadowOffset: { width: 0, height: -8 },
+      shadowOpacity: 0.12,
+      shadowRadius: 18,
+      elevation: 12,
+      overflow: 'hidden',
+    },
+    importHandleHitArea: {
+      alignItems: 'center',
+      paddingTop: 12,
+      paddingBottom: 16,
+    },
+    importHeaderBlock: {
+      alignItems: 'center',
+      paddingBottom: 2,
+    },
     handle: { width: 36, height: 4, backgroundColor: c.line, borderRadius: 999, alignSelf: 'center' },
     importIcon: { width: 64, height: 64, borderRadius: 999, backgroundColor: c.accentSoft, alignItems: 'center', justifyContent: 'center', alignSelf: 'center' },
     importTitle: { fontSize: 17, fontWeight: '800', textAlign: 'center', color: c.ink },
     importDesc: { fontSize: 13, color: c.muted, textAlign: 'center', lineHeight: 19 },
-    importList: { backgroundColor: c.bg, borderRadius: 14, maxHeight: 300 },
+    searchWrap: {
+      backgroundColor: c.bg,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: c.line,
+      paddingHorizontal: 12,
+      paddingVertical: 2,
+    },
+    searchInput: { height: 42, fontSize: 14, color: c.ink },
+    importList: { backgroundColor: c.bg, borderRadius: 18, maxHeight: 320 },
     importRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 11, paddingHorizontal: 14 },
     importAvatar: { width: 38, height: 38, borderRadius: 999, backgroundColor: c.line, alignItems: 'center', justifyContent: 'center' },
     importAvatarText: { fontWeight: '700', fontSize: 13.5, color: c.muted },
     importName: { fontWeight: '600', fontSize: 14, color: c.ink },
     importPhone: { fontSize: 12, color: c.muted },
-    importCheck: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: c.line, alignItems: 'center', justifyContent: 'center' },
+    importCheck: {
+      width: 24,
+      height: 24,
+      borderRadius: 8,
+      borderWidth: 2,
+      borderColor: c.line,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: c.panel,
+    },
     importChecked: { backgroundColor: c.accent, borderColor: c.accent },
+    emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 42, paddingHorizontal: 24 },
+    emptyStateTitle: { fontSize: 15, fontWeight: '700', color: c.ink, marginBottom: 6 },
+    emptyStateText: { fontSize: 13, color: c.muted, lineHeight: 19, textAlign: 'center' },
     confirmRow: { gap: 10 },
     confirmText: { fontSize: 13, color: c.ink, lineHeight: 18, textAlign: 'center' },
     confirmBtns: { flexDirection: 'row', gap: 8 },
+    debugLabel: { fontSize: 10.5, color: c.muted, letterSpacing: 0.3 },
     toast: { backgroundColor: c.ink, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, alignItems: 'center' },
     toastText: { color: c.onAccent, fontSize: 13, fontWeight: '600' },
   });
