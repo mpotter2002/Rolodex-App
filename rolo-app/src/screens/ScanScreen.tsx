@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useMemo } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Image, Platform, Animated,
+  View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Image, Platform, Animated, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -12,8 +12,37 @@ import { Contact } from '../types/contact';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { recognizeText, parseCardText } from '../utils/ocr';
 import { extractCardWithAi } from '../utils/cardExtraction';
+import { StructuredScanResult } from '../types/scan';
 
 const emptyForm = { name: '', title: '', company: '', phone: '', email: '', website: '', address: '', notes: '', category: '' };
+type FormFieldKey = keyof typeof emptyForm;
+type CandidateFieldKey = Exclude<keyof StructuredScanResult['candidates'], 'notes'>;
+type ReviewSelectionState = Record<CandidateFieldKey, string[]>;
+
+const candidateFieldConfig: Array<{
+  candidateKey: CandidateFieldKey;
+  formKey: FormFieldKey;
+  label: string;
+  multiSelect?: boolean;
+}> = [
+  { candidateKey: 'names', formKey: 'name', label: 'Names', multiSelect: true },
+  { candidateKey: 'titles', formKey: 'title', label: 'Titles' },
+  { candidateKey: 'companies', formKey: 'company', label: 'Companies' },
+  { candidateKey: 'phones', formKey: 'phone', label: 'Phone Numbers', multiSelect: true },
+  { candidateKey: 'emails', formKey: 'email', label: 'Emails', multiSelect: true },
+  { candidateKey: 'websites', formKey: 'website', label: 'Websites', multiSelect: true },
+  { candidateKey: 'addresses', formKey: 'address', label: 'Addresses' },
+];
+
+const emptyReviewSelections = (): ReviewSelectionState => ({
+  names: [],
+  titles: [],
+  companies: [],
+  phones: [],
+  emails: [],
+  websites: [],
+  addresses: [],
+});
 
 interface SelectedImage {
   uri: string;
@@ -23,7 +52,7 @@ interface SelectedImage {
 
 export default function ScanScreen() {
   const insets = useSafeAreaInsets();
-  const { addContact } = useContacts();
+  const { addContact, importContacts } = useContacts();
   const navigation = useNavigation<any>();
   const { colors } = useTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
@@ -32,6 +61,8 @@ export default function ScanScreen() {
   const [selectedImage, setSelectedImage] = useState<SelectedImage | null>(null);
   const [status, setStatus] = useState('Upload a card image to start.');
   const [extracting, setExtracting] = useState(false);
+  const [reviewResult, setReviewResult] = useState<StructuredScanResult | null>(null);
+  const [reviewSelections, setReviewSelections] = useState<ReviewSelectionState>(emptyReviewSelections);
 
   const mountOpacity = useRef(new Animated.Value(0)).current;
   const mountY = useRef(new Animated.Value(28)).current;
@@ -52,7 +83,136 @@ export default function ScanScreen() {
   function clearForm() {
     setForm(emptyForm);
     setSelectedImage(null);
+    setReviewResult(null);
+    setReviewSelections(emptyReviewSelections());
     setStatus('Form cleared.');
+  }
+
+  function buildInitialReviewSelections(result: StructuredScanResult): ReviewSelectionState {
+    const selections = emptyReviewSelections();
+
+    for (const field of candidateFieldConfig) {
+      const candidates = result.candidates[field.candidateKey];
+      const primaryValue = result.primary[field.formKey as keyof typeof result.primary];
+      const preferred = [primaryValue, ...candidates].find((value) => Boolean(value?.trim()));
+      if (preferred) {
+        selections[field.candidateKey] = [preferred];
+      }
+    }
+
+    return selections;
+  }
+
+  function applyReviewSelections(nextSelections: ReviewSelectionState, result: StructuredScanResult) {
+    const nextForm = {
+      ...emptyForm,
+      notes: result.primary.notes || '',
+      category: '',
+    };
+
+    const extraNoteLines: string[] = [];
+
+    for (const field of candidateFieldConfig) {
+      const selectedValues = nextSelections[field.candidateKey].filter(Boolean);
+      nextForm[field.formKey] = selectedValues[0] || '';
+
+      if (field.multiSelect && selectedValues.length > 1) {
+        extraNoteLines.push(`${field.label}: ${selectedValues.slice(1).join(' • ')}`);
+      }
+    }
+
+    const noteCandidates = result.candidates.notes.filter(Boolean);
+    const noteParts = [nextForm.notes, ...noteCandidates, ...extraNoteLines]
+      .map((value) => value.trim())
+      .filter(Boolean);
+    const uniqueNotes = Array.from(new Set(noteParts));
+
+    nextForm.notes = uniqueNotes.join('\n');
+    nextForm.category = suggestCategory(nextForm.title, nextForm.company);
+
+    setForm(nextForm);
+  }
+
+  function setReviewState(result: StructuredScanResult) {
+    const nextSelections = buildInitialReviewSelections(result);
+    setReviewResult(result);
+    setReviewSelections(nextSelections);
+    applyReviewSelections(nextSelections, result);
+  }
+
+  function toggleReviewValue(field: CandidateFieldKey, value: string, multiSelect = false) {
+    if (!reviewResult) return;
+
+    setReviewSelections((prev) => {
+      const currentValues = prev[field];
+      const exists = currentValues.includes(value);
+      const nextValues = multiSelect
+        ? (exists ? currentValues.filter((item) => item !== value) : [...currentValues, value])
+        : (exists ? currentValues : [value]);
+
+      const normalizedNext = multiSelect && nextValues.length === 0
+        ? currentValues
+        : nextValues;
+
+      const nextSelections = {
+        ...prev,
+        [field]: normalizedNext,
+      };
+      applyReviewSelections(nextSelections, reviewResult);
+      return nextSelections;
+    });
+  }
+
+  function buildContactsFromReviewSelections(): Contact[] {
+    const names = reviewSelections.names.filter(Boolean);
+    if (!reviewResult || names.length <= 1) {
+      return [];
+    }
+
+    const titles = reviewSelections.titles.filter(Boolean);
+    const companies = reviewSelections.companies.filter(Boolean);
+    const addresses = reviewSelections.addresses.filter(Boolean);
+    const phones = reviewSelections.phones.filter(Boolean);
+    const emails = reviewSelections.emails.filter(Boolean);
+    const websites = reviewSelections.websites.filter(Boolean);
+
+    const pickSharedOrIndexed = (values: string[], index: number) => {
+      if (values.length === names.length) return values[index] || '';
+      if (values.length === 1) return values[0];
+      return values[0] || '';
+    };
+
+    return names.map((name, index) => {
+      const title = pickSharedOrIndexed(titles, index) || form.title;
+      const company = pickSharedOrIndexed(companies, index) || form.company;
+      const address = pickSharedOrIndexed(addresses, index) || form.address;
+      const phone = pickSharedOrIndexed(phones, index) || '';
+      const email = pickSharedOrIndexed(emails, index) || '';
+      const website = pickSharedOrIndexed(websites, index) || '';
+
+      const notes = [
+        form.notes,
+        `Imported from a shared business card with: ${names.filter((entry) => entry !== name).join(', ')}`,
+      ]
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .filter((value, noteIndex, all) => all.indexOf(value) === noteIndex)
+        .join('\n');
+
+      return {
+        id: `${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`,
+        name,
+        title,
+        company,
+        phone,
+        email,
+        website,
+        address,
+        notes,
+        category: suggestCategory(title, company),
+        createdAt: new Date().toISOString(),
+      };
+    });
   }
 
   function setImageFromAsset(asset: ImagePicker.ImagePickerAsset) {
@@ -153,8 +313,17 @@ export default function ScanScreen() {
         } else if (aiResult.needsReview) {
           ambiguityMessage = ' A few fields may need a quick review.';
         }
+
+        if (aiResult.multipleDetected || aiResult.needsReview) {
+          setReviewState(aiResult);
+        } else {
+          setReviewResult(null);
+          setReviewSelections(emptyReviewSelections());
+        }
       } catch (aiError) {
         console.warn('AI extraction fallback:', aiError);
+        setReviewResult(null);
+        setReviewSelections(emptyReviewSelections());
       }
 
       setForm({
@@ -187,6 +356,19 @@ export default function ScanScreen() {
       setStatus('Add at least a name, company, email, or phone.');
       return;
     }
+
+    const reviewContacts = buildContactsFromReviewSelections();
+    if (reviewContacts.length > 1) {
+      importContacts(reviewContacts);
+      setForm(emptyForm);
+      setSelectedImage(null);
+      setReviewResult(null);
+      setReviewSelections(emptyReviewSelections());
+      setStatus(`${reviewContacts.length} contacts added to your Rolo.`);
+      navigation.navigate('Deck');
+      return;
+    }
+
     const cat = form.category || suggestCategory(form.title, form.company);
     const contact: Contact = {
       ...form,
@@ -248,6 +430,59 @@ export default function ScanScreen() {
       </View>
 
       {/* Contact form */}
+      {reviewResult && (
+        <View style={s.card}>
+          <View style={s.reviewHeader}>
+            <View>
+              <Text style={s.reviewTitle}>Review extracted choices</Text>
+              <Text style={s.reviewSub}>
+                Pick the values you want to keep before saving. Extra selected emails, phones, and websites are preserved in notes for now.
+              </Text>
+            </View>
+            <TouchableOpacity style={s.reviewDismiss} onPress={() => setReviewResult(null)}>
+              <Text style={s.reviewDismissText}>Hide</Text>
+            </TouchableOpacity>
+          </View>
+
+          {candidateFieldConfig.map((field) => {
+            const candidates = Array.from(new Set([
+              ...reviewResult.candidates[field.candidateKey],
+              reviewResult.primary[field.formKey as keyof typeof reviewResult.primary],
+            ].filter(Boolean)));
+
+            if (candidates.length <= 1 && !reviewResult.multipleDetected) {
+              return null;
+            }
+
+            return (
+              <View key={field.candidateKey} style={s.reviewGroup}>
+                <Text style={s.reviewGroupLabel}>
+                  {field.label.toUpperCase()}
+                  {field.multiSelect ? ' · MULTI-SELECT' : ''}
+                </Text>
+                <View style={s.reviewChipWrap}>
+                  {candidates.map((candidate) => {
+                    const selected = reviewSelections[field.candidateKey].includes(candidate);
+                    return (
+                      <TouchableOpacity
+                        key={`${field.candidateKey}-${candidate}`}
+                        style={[s.reviewChip, selected && s.reviewChipSelected]}
+                        onPress={() => toggleReviewValue(field.candidateKey, candidate, field.multiSelect)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[s.reviewChipText, selected && s.reviewChipTextSelected]}>
+                          {candidate}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      )}
+
       <View style={s.card}>
         {[
           { key: 'name', label: 'Name', placeholder: 'Alex Johnson' },
@@ -283,10 +518,23 @@ export default function ScanScreen() {
           />
         </View>
         <TouchableOpacity style={[s.btn, s.btnPrimary, { marginTop: 8 }]} onPress={handleSubmit}>
-          <Text style={s.btnPrimaryText}>Add To Rolo</Text>
+          <Text style={s.btnPrimaryText}>
+            {reviewSelections.names.filter(Boolean).length > 1 ? 'Add Contacts To Rolo' : 'Add To Rolo'}
+          </Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
+    {extracting && (
+      <View style={s.loadingOverlay}>
+        <View style={s.loadingCard}>
+          <ActivityIndicator size="small" color={colors.accent} />
+          <Text style={s.loadingTitle}>Extracting card details</Text>
+          <Text style={s.loadingText}>
+            Reading the card and organizing the contact info. This can take a few seconds.
+          </Text>
+        </View>
+      </View>
+    )}
     </Animated.View>
   );
 }
@@ -323,6 +571,45 @@ function makeStyles(c: ColorPalette) {
     btnSubtle: { backgroundColor: c.panel, borderWidth: 1, borderColor: c.line },
     btnSubtleText: { color: c.ink, fontSize: 14, fontWeight: '700' },
     status: { fontSize: 13, color: c.muted, minHeight: 18 },
+    reviewHeader: { flexDirection: 'row', gap: 12, justifyContent: 'space-between', alignItems: 'flex-start' },
+    reviewTitle: { fontSize: 15, fontWeight: '800', color: c.ink, marginBottom: 4 },
+    reviewSub: { fontSize: 12.5, lineHeight: 18, color: c.muted, maxWidth: '92%' },
+    reviewDismiss: {
+      paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: c.line,
+      backgroundColor: c.panel,
+    },
+    reviewDismissText: { fontSize: 12, fontWeight: '700', color: c.ink },
+    reviewGroup: { gap: 8, marginTop: 4 },
+    reviewGroupLabel: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.5, color: c.muted },
+    reviewChipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    reviewChip: {
+      paddingHorizontal: 12, paddingVertical: 9, borderRadius: 999, borderWidth: 1, borderColor: c.line,
+      backgroundColor: c.panel,
+    },
+    reviewChipSelected: { backgroundColor: c.accentSoft, borderColor: c.accent },
+    reviewChipText: { fontSize: 13, fontWeight: '600', color: c.ink },
+    reviewChipTextSelected: { color: c.accent },
+    loadingOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(0, 0, 0, 0.38)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 24,
+    },
+    loadingCard: {
+      width: '100%',
+      maxWidth: 320,
+      borderRadius: 20,
+      paddingHorizontal: 20,
+      paddingVertical: 18,
+      backgroundColor: c.bg,
+      borderWidth: 1,
+      borderColor: c.line,
+      alignItems: 'center',
+      gap: 10,
+    },
+    loadingTitle: { fontSize: 15, fontWeight: '800', color: c.ink },
+    loadingText: { fontSize: 13, lineHeight: 19, color: c.muted, textAlign: 'center' },
     field: { marginBottom: 4 },
     fieldLabel: { fontSize: 10.5, fontWeight: '700', letterSpacing: 0.5, color: c.muted, marginBottom: 4 },
     fieldInput: {
