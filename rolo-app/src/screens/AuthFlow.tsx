@@ -7,6 +7,7 @@ import { AntDesign, Ionicons } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
+import * as Crypto from 'expo-crypto';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../utils/ThemeContext';
 import { lightColors, darkColors, ColorPalette } from '../utils/theme';
@@ -90,11 +91,13 @@ export default function AuthFlow() {
   async function handleAppleSignIn() {
     setErrorMsg('');
     try {
+      const rawNonce = Crypto.randomUUID();
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
+        nonce: rawNonce,
       });
       if (!credential.identityToken) {
         setErrorMsg('Apple sign-in failed. Please try again.');
@@ -103,8 +106,26 @@ export default function AuthFlow() {
       const { error } = await supabase.auth.signInWithIdToken({
         provider: 'apple',
         token: credential.identityToken,
+        nonce: rawNonce,
       });
-      if (error) setErrorMsg(error.message);
+      if (error) {
+        setErrorMsg(error.message);
+        return;
+      }
+
+      const givenName = credential.fullName?.givenName?.trim() || '';
+      const familyName = credential.fullName?.familyName?.trim() || '';
+      const fullName = [givenName, familyName].filter(Boolean).join(' ').trim();
+
+      if (fullName) {
+        await supabase.auth.updateUser({
+          data: {
+            full_name: fullName,
+            given_name: givenName,
+            family_name: familyName,
+          },
+        });
+      }
     } catch (e: any) {
       if (e?.code !== 'ERR_REQUEST_CANCELED') {
         setErrorMsg('Apple sign-in failed. Please try again.');
