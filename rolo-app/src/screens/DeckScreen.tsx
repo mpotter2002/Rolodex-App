@@ -442,16 +442,36 @@ export default function DeckScreen() {
       },
     ] : [
       {
+        translateY: CARD_PIVOT_OFFSET,
+      },
+      {
+        scaleY: transitionProgress.interpolate({
+          inputRange: [0, 0.55, 1],
+          outputRange: [1, 0.95, 0.88],
+          extrapolate: 'clamp',
+        }),
+      },
+      {
+        translateY: -CARD_PIVOT_OFFSET,
+      },
+      {
         translateY: transitionProgress.interpolate({
           inputRange: [0, 1],
-          outputRange: [0, -18],
+          outputRange: [0, -12],
           extrapolate: 'clamp',
         }),
       },
       {
         scale: transitionProgress.interpolate({
           inputRange: [0, 1],
-          outputRange: [1, 0.968],
+          outputRange: [1, 0.976],
+          extrapolate: 'clamp',
+        }),
+      },
+      {
+        scaleX: transitionProgress.interpolate({
+          inputRange: [0, 0.68, 1],
+          outputRange: [1, 1.012, 1.018],
           extrapolate: 'clamp',
         }),
       },
@@ -501,14 +521,14 @@ export default function DeckScreen() {
       {
         scaleY: transitionProgress.interpolate({
           inputRange: [0, 0.78, 1],
-          outputRange: [1.9, 1.12, 1],
+          outputRange: [2.08, 1.18, 1],
           extrapolate: 'clamp',
         }),
       },
       {
         translateY: transitionProgress.interpolate({
           inputRange: [0, 1],
-          outputRange: [18, 0],
+          outputRange: [12, 0],
           extrapolate: 'clamp',
         }),
       },
@@ -533,21 +553,21 @@ export default function DeckScreen() {
       {
         translateY: transitionProgress.interpolate({
           inputRange: [0, 1],
-          outputRange: [18, 0],
+          outputRange: [10, 0],
           extrapolate: 'clamp',
         }),
       },
       {
         scaleX: transitionProgress.interpolate({
           inputRange: [0, 1],
-          outputRange: [1.04, 1],
+          outputRange: [1.05, 1],
           extrapolate: 'clamp',
         }),
       },
     ],
   };
   const incomingTabOpacity = transitionProgress.interpolate({
-    inputRange: isSwipeDown ? [0, 0.35, 1] : [0, 0.88, 1],
+    inputRange: isSwipeDown ? [0, 0.35, 1] : [0, 0.93, 1],
     outputRange: isSwipeDown ? [0.35, 0.65, 1] : [0, 0, 1],
     extrapolate: 'clamp',
   });
@@ -556,7 +576,30 @@ export default function DeckScreen() {
       {
         translateY: transitionProgress.interpolate({
           inputRange: [0, 1],
-          outputRange: [isSwipeDown ? -12 : 24, 0],
+          outputRange: [isSwipeDown ? -12 : 28, 0],
+          extrapolate: 'clamp',
+        }),
+      },
+      ...(isSwipeDown ? [] : [
+        {
+          scaleY: transitionProgress.interpolate({
+            inputRange: [0, 0.9, 1],
+            outputRange: [1.18, 1.08, 1],
+            extrapolate: 'clamp',
+          }),
+        },
+        {
+          scaleX: transitionProgress.interpolate({
+            inputRange: [0, 0.9, 1],
+            outputRange: [0.94, 0.97, 1],
+            extrapolate: 'clamp',
+          }),
+        },
+      ]),
+      {
+        rotate: transitionProgress.interpolate({
+          inputRange: isSwipeDown ? [0, 1] : [0, 0.9, 1],
+          outputRange: isSwipeDown ? ['0deg', '0deg'] : ['-2.4deg', '-1deg', '0deg'],
           extrapolate: 'clamp',
         }),
       },

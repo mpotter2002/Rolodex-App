@@ -11,8 +11,15 @@ import { suggestCategory } from '../data/categories';
 import { Contact } from '../types/contact';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { recognizeText, parseCardText } from '../utils/ocr';
+import { extractCardWithAi } from '../utils/cardExtraction';
 
 const emptyForm = { name: '', title: '', company: '', phone: '', email: '', website: '', address: '', notes: '', category: '' };
+
+interface SelectedImage {
+  uri: string;
+  mimeType?: string | null;
+  base64?: string | null;
+}
 
 export default function ScanScreen() {
   const insets = useSafeAreaInsets();
@@ -22,7 +29,7 @@ export default function ScanScreen() {
   const s = useMemo(() => makeStyles(colors), [colors]);
 
   const [form, setForm] = useState(emptyForm);
-  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<SelectedImage | null>(null);
   const [status, setStatus] = useState('Upload a card image to start.');
   const [extracting, setExtracting] = useState(false);
 
@@ -44,8 +51,16 @@ export default function ScanScreen() {
 
   function clearForm() {
     setForm(emptyForm);
-    setImageUri(null);
+    setSelectedImage(null);
     setStatus('Form cleared.');
+  }
+
+  function setImageFromAsset(asset: ImagePicker.ImagePickerAsset) {
+    setSelectedImage({
+      uri: asset.uri,
+      mimeType: asset.mimeType,
+      base64: asset.base64 ?? null,
+    });
   }
 
   async function pickImage() {
@@ -58,10 +73,11 @@ export default function ScanScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       quality: 0.8,
+      base64: true,
     });
 
     if (!result.canceled && result.assets[0]) {
-      setImageUri(result.assets[0].uri);
+      setImageFromAsset(result.assets[0]);
       setStatus('Image ready. Click "Extract From Card".');
     }
   }
@@ -73,31 +89,74 @@ export default function ScanScreen() {
       return;
     }
 
-    const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.8, base64: true });
 
     if (!result.canceled && result.assets[0]) {
-      setImageUri(result.assets[0].uri);
+      setImageFromAsset(result.assets[0]);
       setStatus('Photo captured. Click "Extract From Card".');
     }
   }
 
   async function handleExtract() {
-    if (!imageUri) {
+    if (!selectedImage?.uri) {
       setStatus('Upload a business card image first.');
       return;
     }
     setExtracting(true);
-    setStatus('Reading card text with AI OCR...');
+    setStatus('Reading card text and organizing contact fields...');
 
     try {
-      const rawText = await recognizeText(imageUri);
+      const rawText = await recognizeText(selectedImage.uri);
 
       if (!rawText) {
         setStatus('No text detected. Try a clearer photo or enter details manually.');
         return;
       }
 
-      const parsed = parseCardText(rawText);
+      const fallback = parseCardText(rawText);
+      let parsed = {
+        name: fallback.name,
+        title: fallback.title,
+        company: fallback.company,
+        phone: fallback.phone,
+        email: fallback.email,
+        website: fallback.website,
+        address: fallback.address,
+        notes: fallback.notes,
+      };
+      let ambiguityMessage = '';
+
+      try {
+        const mimeType = selectedImage.mimeType || 'image/jpeg';
+        const imageDataUrl = selectedImage.base64
+          ? `data:${mimeType};base64,${selectedImage.base64}`
+          : null;
+
+        const aiResult = await extractCardWithAi({
+          rawText,
+          imageDataUrl,
+        });
+
+        parsed = {
+          name: aiResult.primary.name || fallback.name,
+          title: aiResult.primary.title || fallback.title,
+          company: aiResult.primary.company || fallback.company,
+          phone: aiResult.primary.phone || fallback.phone,
+          email: aiResult.primary.email || fallback.email,
+          website: aiResult.primary.website || fallback.website,
+          address: aiResult.primary.address || fallback.address,
+          notes: aiResult.primary.notes || fallback.notes,
+        };
+
+        if (aiResult.multipleDetected) {
+          ambiguityMessage = ' Multiple values detected on the card. Review carefully before saving.';
+        } else if (aiResult.needsReview) {
+          ambiguityMessage = ' A few fields may need a quick review.';
+        }
+      } catch (aiError) {
+        console.warn('AI extraction fallback:', aiError);
+      }
+
       setForm({
         name: parsed.name,
         title: parsed.title,
@@ -109,7 +168,7 @@ export default function ScanScreen() {
         notes: parsed.notes,
         category: suggestCategory(parsed.title, parsed.company),
       });
-      setStatus('Details extracted. Review and tap Add To Rolo.');
+      setStatus(`Details extracted.${ambiguityMessage} Review and tap Add To Rolo.`);
     } catch (err: any) {
       const msg = err?.message || '';
       if (msg.includes('not available') || msg.includes('native') || msg.includes('undefined')) {
@@ -137,7 +196,7 @@ export default function ScanScreen() {
     };
     addContact(contact);
     setForm(emptyForm);
-    setImageUri(null);
+    setSelectedImage(null);
     setStatus('Contact added to your Rolo.');
     navigation.navigate('Deck');
   }
@@ -153,8 +212,8 @@ export default function ScanScreen() {
       {/* Upload area */}
       <View style={s.card}>
         <TouchableOpacity style={s.upload} activeOpacity={0.7} onPress={takePhoto}>
-          {imageUri ? (
-            <Image source={{ uri: imageUri }} style={s.preview} />
+          {selectedImage?.uri ? (
+            <Image source={{ uri: selectedImage.uri }} style={s.preview} />
           ) : (
             <View style={s.uploadContent}>
               <View style={s.uploadIconWrap}><Text style={s.uploadIcon}>📷</Text></View>

@@ -139,7 +139,7 @@ export default function SettingsScreen() {
         return;
       }
 
-      setCheckedIds(new Set(usable.map((c) => c.id).filter(Boolean) as string[]));
+      setCheckedIds(new Set());
       setPhoneContacts(usable);
       setShowImport(true);
       requestAnimationFrame(animateImportOpen);
