@@ -80,7 +80,10 @@ export default function AuthFlow({ initialScreen = 'splash', onPasswordResetDone
     setLoading(true);
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(), password,
-      options: { data: { full_name: fullName.trim() } },
+      options: {
+        data: { full_name: fullName.trim() },
+        emailRedirectTo: Linking.createURL('/'),
+      },
     });
     setLoading(false);
     if (error) { setErrorMsg(error.message); }
@@ -143,12 +146,16 @@ export default function AuthFlow({ initialScreen = 'splash', onPasswordResetDone
     setLoading(true);
     try {
       const rawNonce = Crypto.randomUUID();
+      const hashedNonce = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        rawNonce,
+      );
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
-        nonce: rawNonce,
+        nonce: hashedNonce,
       });
       if (!credential.identityToken) {
         setErrorMsg('Apple sign-in failed. Please try again.');
