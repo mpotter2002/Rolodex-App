@@ -7,6 +7,7 @@ import { supabase } from './supabase';
 
 const CONTACTS_KEY = 'rolo_contacts_v1';
 const ONBOARDED_KEY = 'rolo_onboarded';
+const TUTORIAL_SEEN_KEY = 'rolo_tutorial_seen';
 const ACCOUNT_KEY = 'rolo_account';
 
 // ─── local contact storage ────────────────────────────────────────────────────
@@ -47,6 +48,17 @@ export async function setOnboarded(): Promise<void> {
   await AsyncStorage.setItem(ONBOARDED_KEY, '1');
 }
 
+// ─── tutorial ─────────────────────────────────────────────────────────────────
+
+export async function hasTutorialSeen(): Promise<boolean> {
+  const val = await AsyncStorage.getItem(TUTORIAL_SEEN_KEY);
+  return val === '1';
+}
+
+export async function setTutorialSeen(): Promise<void> {
+  await AsyncStorage.setItem(TUTORIAL_SEEN_KEY, '1');
+}
+
 // ─── account (profile display only — source of truth is Supabase Auth) ───────
 
 export async function loadAccount(): Promise<{ name: string; email: string }> {
@@ -65,6 +77,7 @@ export async function clearAll(): Promise<void> {
   await AsyncStorage.removeItem(CONTACTS_KEY);
   await AsyncStorage.removeItem(ONBOARDED_KEY);
   await AsyncStorage.removeItem(ACCOUNT_KEY);
+  await AsyncStorage.removeItem(TUTORIAL_SEEN_KEY);
 }
 
 // Clears only contact/account data — leaves onboarding flag so returning
@@ -72,6 +85,7 @@ export async function clearAll(): Promise<void> {
 export async function clearUserData(): Promise<void> {
   await AsyncStorage.removeItem(CONTACTS_KEY);
   await AsyncStorage.removeItem(ACCOUNT_KEY);
+  await AsyncStorage.removeItem(TUTORIAL_SEEN_KEY);
 }
 
 // ─── Supabase contact sync ────────────────────────────────────────────────────

@@ -1,13 +1,14 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
-  StyleSheet, Image, ScrollView, Animated, useWindowDimensions, PanResponder, Keyboard, Easing, useColorScheme,
+  StyleSheet, Image, ScrollView, Animated, useWindowDimensions, PanResponder, Keyboard, Easing, useColorScheme, Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ColorPalette, radius } from '../utils/theme';
 import { useTheme } from '../utils/ThemeContext';
 import { useContacts } from '../utils/ContactsContext';
+import { hasTutorialSeen, setTutorialSeen } from '../utils/storage';
 import { CATEGORIES, getCategoryLabel } from '../data/categories';
 import { Contact } from '../types/contact';
 import ContactDetailSheet from '../components/ContactDetailSheet';
@@ -20,7 +21,7 @@ export default function DeckScreen() {
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const vpHeight = Math.max(160, Math.min(420, windowHeight - 370));
-  const { contacts } = useContacts();
+  const { contacts, clearDemoContacts } = useContacts();
   const { colors, themeMode, setThemeMode } = useTheme();
   const systemColorScheme = useColorScheme();
   const isDark = themeMode === 'dark' || (themeMode === 'system' && systemColorScheme === 'dark');
@@ -45,6 +46,56 @@ export default function DeckScreen() {
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [deckIndex, setDeckIndex] = useState(0);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+
+  // ─── tutorial popups ──────────────────────────────────────────────────────
+  const [tutorialStep, setTutorialStep] = useState<'welcome' | 'getstarted' | null>(null);
+  const tutorialActiveRef = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    let cancelled = false;
+    hasTutorialSeen().then((seen) => {
+      if (cancelled || seen) return;
+      tutorialActiveRef.current = true;
+      setTutorialStep('welcome');
+      timerRef.current = setTimeout(() => {
+        if (!cancelled) {
+          setTutorialStep((prev) => (prev !== null ? 'getstarted' : null));
+        }
+      }, 60_000);
+    });
+    return () => { cancelled = true; clearTimeout(timerRef.current); };
+  }, []);
+
+  // Auto-clear demo contacts when user adds a real contact during tutorial
+  const hasDemoContacts = contacts.some((c) => c.id.startsWith('demo-'));
+  const hasRealContacts = contacts.some((c) => !c.id.startsWith('demo-'));
+
+  useEffect(() => {
+    if (tutorialActiveRef.current && hasRealContacts && hasDemoContacts) {
+      clearDemoContacts();
+      clearTimeout(timerRef.current);
+      setTutorialStep(null);
+      setTutorialSeen();
+      tutorialActiveRef.current = false;
+    }
+  }, [hasRealContacts, hasDemoContacts, clearDemoContacts]);
+
+  const dismissTutorial = useCallback(() => {
+    setTutorialStep(null);
+    setTutorialSeen();
+    tutorialActiveRef.current = false;
+    clearTimeout(timerRef.current);
+  }, []);
+
+  const handleClearDemo = useCallback(() => {
+    clearDemoContacts();
+    setTutorialStep(null);
+    setTutorialSeen();
+    tutorialActiveRef.current = false;
+    clearTimeout(timerRef.current);
+    setDeckIndex(0);
+  }, [clearDemoContacts]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -791,6 +842,45 @@ export default function DeckScreen() {
           onClose={() => setSelectedContact(null)}
         />
       )}
+
+      {/* ─── tutorial popup ─────────────────────────────────────────────── */}
+      {tutorialStep !== null && (
+        <Modal transparent animationType="fade" visible>
+          <View style={s.tutorialOverlay}>
+            <View style={s.tutorialCard}>
+              {tutorialStep === 'welcome' ? (
+                <>
+                  <Text style={s.tutorialEmoji}>👋</Text>
+                  <Text style={s.tutorialTitle}>Welcome to Rolo!</Text>
+                  <Text style={s.tutorialDesc}>
+                    We loaded some sample contacts so you can explore. Swipe through the deck and see how it feels!
+                  </Text>
+                  <TouchableOpacity style={s.tutorialBtn} onPress={() => setTutorialStep(null)} activeOpacity={0.85}>
+                    <Text style={s.tutorialBtnText}>Got it, let me explore</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={s.tutorialBtnGhost} onPress={handleClearDemo} activeOpacity={0.7}>
+                    <Text style={s.tutorialBtnGhostText}>Clear samples now</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <Text style={s.tutorialEmoji}>🚀</Text>
+                  <Text style={s.tutorialTitle}>Ready to get started?</Text>
+                  <Text style={s.tutorialDesc}>
+                    Clear the sample contacts and start building your real deck. Scan a business card or add contacts manually!
+                  </Text>
+                  <TouchableOpacity style={s.tutorialBtn} onPress={handleClearDemo} activeOpacity={0.85}>
+                    <Text style={s.tutorialBtnText}>Clear samples & get started</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={s.tutorialBtnGhost} onPress={dismissTutorial} activeOpacity={0.7}>
+                    <Text style={s.tutorialBtnGhostText}>Keep exploring</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -901,5 +991,33 @@ function makeStyles(c: ColorPalette) {
     roundText: {},
     countWrap: {},
     emptyIcon: {},
+    // Tutorial popup
+    tutorialOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 32,
+    },
+    tutorialCard: {
+      backgroundColor: c.panel,
+      borderRadius: 20,
+      padding: 28,
+      alignItems: 'center',
+      width: '100%',
+      maxWidth: 340,
+      shadowColor: '#000',
+      shadowOpacity: 0.15,
+      shadowRadius: 20,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 10,
+    },
+    tutorialEmoji: { fontSize: 48, marginBottom: 12 },
+    tutorialTitle: { fontSize: 22, fontWeight: '800', color: c.ink, marginBottom: 8, textAlign: 'center', letterSpacing: -0.3 },
+    tutorialDesc: { fontSize: 14.5, color: c.muted, textAlign: 'center', lineHeight: 21, marginBottom: 20 },
+    tutorialBtn: { backgroundColor: c.accent, borderRadius: 14, paddingVertical: 14, alignItems: 'center', width: '100%' },
+    tutorialBtnText: { color: c.onAccent, fontSize: 15, fontWeight: '700' },
+    tutorialBtnGhost: { paddingVertical: 12, alignItems: 'center' },
+    tutorialBtnGhostText: { color: c.muted, fontSize: 13.5, fontWeight: '600' },
   });
 }

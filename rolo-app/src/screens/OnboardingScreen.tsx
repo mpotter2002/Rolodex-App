@@ -25,7 +25,7 @@ const PAGES = [
   {
     emoji: '✨',
     title: "You're All Set",
-    desc: 'Start building your deck. Tap the + button anytime to scan a card or add a contact manually.',
+    desc: "We've loaded some sample contacts so you can explore the deck. Give it a spin — when you're ready, clear them and start adding your own!",
   },
 ];
 

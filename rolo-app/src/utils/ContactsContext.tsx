@@ -18,6 +18,7 @@ interface ContactsState {
   removeContact: (id: string) => void;
   reloadDemo: () => void;
   clearAll: () => void;
+  clearDemoContacts: () => void;
   importContacts: (newContacts: Contact[]) => void;
 }
 
@@ -29,6 +30,7 @@ const ContactsContext = createContext<ContactsState>({
   removeContact: () => {},
   reloadDemo: () => {},
   clearAll: () => {},
+  clearDemoContacts: () => {},
   importContacts: () => {},
 });
 
@@ -54,9 +56,8 @@ export function ContactsProvider({ children, userId }: Props) {
         const remote = await fetchContactsFromSupabase(userId);
         if (!cancelled) {
           if (remote !== null) {
-            // Got remote data — seed local cache and use it
             if (remote.length === 0) {
-              // First time user: seed with demo contacts and push to Supabase
+              // First-time user: seed with demo contacts
               const demo = generateDemoContacts();
               await saveContacts(demo);
               await upsertContactsBatchToSupabase(demo, userId);
@@ -123,6 +124,16 @@ export function ContactsProvider({ children, userId }: Props) {
     // Note: we do NOT delete from Supabase on clearAll (destructive, only local)
   }, [persist]);
 
+  const clearDemoContacts = useCallback(() => {
+    const demoIds = contacts.filter((c) => c.id.startsWith('demo-')).map((c) => c.id);
+    if (demoIds.length === 0) return;
+    const updated = contacts.filter((c) => !c.id.startsWith('demo-'));
+    persist(updated);
+    if (userId) {
+      demoIds.forEach((id) => deleteContactFromSupabase(id));
+    }
+  }, [contacts, persist, userId]);
+
   const importContacts = useCallback((newContacts: Contact[]) => {
     const existingIds = new Set(contacts.map((c) => c.phone || c.name));
     const unique = newContacts.filter((c) => !existingIds.has(c.phone || c.name));
@@ -133,7 +144,7 @@ export function ContactsProvider({ children, userId }: Props) {
 
   return (
     <ContactsContext.Provider
-      value={{ contacts, loading, addContact, updateContact, removeContact, reloadDemo, clearAll, importContacts }}
+      value={{ contacts, loading, addContact, updateContact, removeContact, reloadDemo, clearAll, clearDemoContacts, importContacts }}
     >
       {children}
     </ContactsContext.Provider>
