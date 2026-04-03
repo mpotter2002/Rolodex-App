@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, Image, StyleSheet,
   ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, useColorScheme,
@@ -17,7 +17,12 @@ WebBrowser.maybeCompleteAuthSession();
 
 type Screen = 'splash' | 'login' | 'signup' | 'forgot' | 'confirm';
 
-export default function AuthFlow() {
+interface AuthFlowProps {
+  initialScreen?: Screen | 'reset';
+  onPasswordResetDone?: () => void;
+}
+
+export default function AuthFlow({ initialScreen = 'splash', onPasswordResetDone }: AuthFlowProps) {
   const insets = useSafeAreaInsets();
   const systemScheme = useColorScheme();
   // ThemeContext may not be mounted yet if this renders before ThemeProvider loads,
@@ -39,32 +44,46 @@ export default function AuthFlow() {
     ? require('../../assets/rolo-logo-dark.png')
     : require('../../assets/rolo-logo-light.png');
 
-  const [screen, setScreen] = useState<Screen>('splash');
+  const [screen, setScreen] = useState<Screen | 'reset'>(initialScreen);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotSent, setForgotSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [statusMsg, setStatusMsg] = useState('');
+
+  useEffect(() => {
+    setScreen(initialScreen);
+    setLoading(false);
+    setErrorMsg('');
+    setStatusMsg('');
+  }, [initialScreen]);
 
   function resetForm() {
     setFullName(''); setEmail(''); setPassword('');
+    setConfirmPassword('');
     setForgotEmail(''); setForgotSent(false);
-    setLoading(false); setErrorMsg('');
+    setLoading(false); setErrorMsg(''); setStatusMsg('');
   }
 
   function goTo(s: Screen) { resetForm(); setScreen(s); }
 
   async function handleSignUp() {
     setErrorMsg('');
+    setStatusMsg('');
     if (!fullName.trim()) { setErrorMsg('Please enter your full name.'); return; }
     if (!email.trim())    { setErrorMsg('Please enter your email address.'); return; }
     if (password.length < 8) { setErrorMsg('Password must be at least 8 characters.'); return; }
     setLoading(true);
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(), password,
-      options: { data: { full_name: fullName.trim() } },
+      options: {
+        data: { full_name: fullName.trim() },
+        emailRedirectTo: Linking.createURL('/'),
+      },
     });
     setLoading(false);
     if (error) { setErrorMsg(error.message); }
@@ -73,6 +92,7 @@ export default function AuthFlow() {
 
   async function handleSignIn() {
     setErrorMsg('');
+    setStatusMsg('');
     if (!email.trim() || !password) { setErrorMsg('Please enter your email and password.'); return; }
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
@@ -81,26 +101,65 @@ export default function AuthFlow() {
   }
 
   async function handleForgotPassword() {
+    setErrorMsg('');
+    setStatusMsg('');
     if (!forgotEmail.trim()) { setErrorMsg('Please enter your email address.'); return; }
     setLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail.trim());
+    const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail.trim(), {
+      redirectTo: Linking.createURL('/reset-password'),
+    });
     setLoading(false);
-    if (error) { setErrorMsg(error.message); } else { setForgotSent(true); }
+    if (error) { setErrorMsg(error.message); } else {
+      setForgotSent(true);
+      setStatusMsg('Password reset email sent. Open the link on this device to finish updating your password.');
+    }
+  }
+
+  async function handleUpdatePassword() {
+    setErrorMsg('');
+    setStatusMsg('');
+    if (password.length < 8) {
+      setErrorMsg('New password must be at least 8 characters.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setErrorMsg('Passwords do not match.');
+      return;
+    }
+
+    setLoading(true);
+    const { error } = await supabase.auth.updateUser({ password });
+    setLoading(false);
+
+    if (error) {
+      setErrorMsg(error.message);
+      return;
+    }
+
+    setStatusMsg('Password updated. Returning you to the app...');
+    onPasswordResetDone?.();
   }
 
   async function handleAppleSignIn() {
     setErrorMsg('');
+    setStatusMsg('');
+    setLoading(true);
     try {
       const rawNonce = Crypto.randomUUID();
+      const hashedNonce = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        rawNonce,
+      );
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
-        nonce: rawNonce,
+        nonce: hashedNonce,
       });
       if (!credential.identityToken) {
         setErrorMsg('Apple sign-in failed. Please try again.');
+        setLoading(false);
         return;
       }
       const { error } = await supabase.auth.signInWithIdToken({
@@ -110,6 +169,7 @@ export default function AuthFlow() {
       });
       if (error) {
         setErrorMsg(error.message);
+        setLoading(false);
         return;
       }
 
@@ -129,12 +189,18 @@ export default function AuthFlow() {
     } catch (e: any) {
       if (e?.code !== 'ERR_REQUEST_CANCELED') {
         setErrorMsg('Apple sign-in failed. Please try again.');
+      } else {
+        setStatusMsg('Apple sign-in canceled.');
       }
+    } finally {
+      setLoading(false);
     }
   }
 
   async function handleGoogleSignIn() {
     setErrorMsg('');
+    setStatusMsg('');
+    setLoading(true);
     try {
       const redirectUrl = Linking.createURL('/');
       const { data, error } = await supabase.auth.signInWithOAuth({
@@ -151,9 +217,15 @@ export default function AuthFlow() {
         if (accessToken && refreshToken) {
           await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
         }
+      } else if (result.type === 'cancel' || result.type === 'dismiss') {
+        setStatusMsg('Google sign-in canceled.');
+      } else {
+        setErrorMsg('Google sign-in did not complete. Please try again.');
       }
     } catch {
       setErrorMsg('Google sign-in failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -220,6 +292,7 @@ export default function AuthFlow() {
               />
             </View>
             {!!errorMsg && <Text style={s.errorText}>{errorMsg}</Text>}
+            {!!statusMsg && <Text style={s.statusText}>{statusMsg}</Text>}
             <TouchableOpacity style={[s.btnBlack, loading && s.btnDisabled]} onPress={handleForgotPassword} disabled={loading}>
               {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnBlackText}>Send Reset Link</Text>}
             </TouchableOpacity>
@@ -230,6 +303,49 @@ export default function AuthFlow() {
           <TouchableOpacity onPress={() => goTo('login')}><Text style={s.switchLink}>Sign in</Text></TouchableOpacity>
         </View>
       </View>
+    );
+  }
+
+  if (screen === 'reset') {
+    return (
+      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.panel }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <ScrollView style={[s.container, { paddingTop: insets.top }]} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+          <View style={s.hero}>
+            <Image source={logoSource} style={s.heroLogo} />
+            <Text style={s.authTitle}>Choose a new password.</Text>
+            <Text style={s.authSubtitle}>Your recovery link worked. Set a new password to continue into Rolo.</Text>
+          </View>
+          <View style={s.authBody}>
+            <View style={s.fieldWrap}>
+              <Text style={s.fieldLabel}>NEW PASSWORD</Text>
+              <TextInput
+                style={s.input}
+                placeholder="Min. 8 characters"
+                placeholderTextColor={colors.muted}
+                secureTextEntry
+                value={password}
+                onChangeText={setPassword}
+              />
+            </View>
+            <View style={s.fieldWrap}>
+              <Text style={s.fieldLabel}>CONFIRM PASSWORD</Text>
+              <TextInput
+                style={s.input}
+                placeholder="Repeat your new password"
+                placeholderTextColor={colors.muted}
+                secureTextEntry
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+              />
+            </View>
+            {!!errorMsg && <Text style={s.errorText}>{errorMsg}</Text>}
+            {!!statusMsg && <Text style={s.statusText}>{statusMsg}</Text>}
+            <TouchableOpacity style={[s.btnBlack, loading && s.btnDisabled]} onPress={handleUpdatePassword} disabled={loading}>
+              {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnBlackText}>Update Password</Text>}
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     );
   }
 
@@ -275,6 +391,7 @@ export default function AuthFlow() {
               <Text style={s.forgotText}>Forgot password?</Text>
             </TouchableOpacity>
             {!!errorMsg && <Text style={s.errorText}>{errorMsg}</Text>}
+            {!!statusMsg && <Text style={s.statusText}>{statusMsg}</Text>}
             <TouchableOpacity style={[s.btnBlack, loading && s.btnDisabled]} onPress={handleSignIn} disabled={loading}>
               {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnBlackText}>Sign In</Text>}
             </TouchableOpacity>
@@ -284,12 +401,12 @@ export default function AuthFlow() {
               <View style={s.dividerLine} />
             </View>
             {Platform.OS === 'ios' && (
-              <TouchableOpacity style={s.socialBtn} onPress={handleAppleSignIn}>
+              <TouchableOpacity style={[s.socialBtn, loading && s.btnDisabled]} onPress={handleAppleSignIn} disabled={loading}>
                 <Ionicons name="logo-apple" size={18} color={colors.ink} style={{ marginRight: 8 }} />
                 <Text style={s.socialText}>Sign in with Apple</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity style={s.socialBtn} onPress={handleGoogleSignIn}>
+            <TouchableOpacity style={[s.socialBtn, loading && s.btnDisabled]} onPress={handleGoogleSignIn} disabled={loading}>
               <AntDesign name="google" size={16} color="#DB4437" style={{ marginRight: 8 }} />
               <Text style={s.socialText}>Sign in with Google</Text>
             </TouchableOpacity>
@@ -352,6 +469,7 @@ export default function AuthFlow() {
               />
             </View>
             {!!errorMsg && <Text style={s.errorText}>{errorMsg}</Text>}
+            {!!statusMsg && <Text style={s.statusText}>{statusMsg}</Text>}
             <TouchableOpacity style={[s.btnBlack, loading && s.btnDisabled]} onPress={handleSignUp} disabled={loading}>
               {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnBlackText}>Create Account</Text>}
             </TouchableOpacity>
@@ -361,12 +479,12 @@ export default function AuthFlow() {
               <View style={s.dividerLine} />
             </View>
             {Platform.OS === 'ios' && (
-              <TouchableOpacity style={s.socialBtn} onPress={handleAppleSignIn}>
+              <TouchableOpacity style={[s.socialBtn, loading && s.btnDisabled]} onPress={handleAppleSignIn} disabled={loading}>
                 <Ionicons name="logo-apple" size={18} color={colors.ink} style={{ marginRight: 8 }} />
                 <Text style={s.socialText}>Sign up with Apple</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity style={s.socialBtn} onPress={handleGoogleSignIn}>
+            <TouchableOpacity style={[s.socialBtn, loading && s.btnDisabled]} onPress={handleGoogleSignIn} disabled={loading}>
               <AntDesign name="google" size={16} color="#DB4437" style={{ marginRight: 8 }} />
               <Text style={s.socialText}>Sign up with Google</Text>
             </TouchableOpacity>
@@ -428,6 +546,7 @@ function makeStyles(c: ColorPalette) {
     input: { borderWidth: 1.5, borderColor: c.line, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, fontSize: 15, fontWeight: '500', color: c.ink, backgroundColor: c.bg },
     forgotText: { color: c.muted, fontSize: 12.5, fontWeight: '600' },
     errorText: { color: '#d93025', fontSize: 13, fontWeight: '600', textAlign: 'center' },
+    statusText: { color: c.muted, fontSize: 13, fontWeight: '600', textAlign: 'center', lineHeight: 18 },
     divider: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     dividerLine: { flex: 1, height: 1, backgroundColor: c.line },
     dividerText: { color: c.muted, fontSize: 12, fontWeight: '600' },

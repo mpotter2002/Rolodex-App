@@ -13,7 +13,7 @@ import { isOnboarded, setOnboarded } from './src/utils/storage';
 
 /** Needs to live inside AuthProvider so useAuth() works */
 function InnerApp() {
-  const { session, user, loading } = useAuth();
+  const { session, user, loading, recoveryMode, setRecoveryMode } = useAuth();
   const [onboarded, setOnboardedState] = useState<boolean | null>(null);
 
   // Check onboarding flag whenever we have a session
@@ -32,6 +32,9 @@ function InnerApp() {
   }
 
   if (loading) return null;
+  if (recoveryMode) {
+    return <AuthFlow initialScreen="reset" onPasswordResetDone={() => setRecoveryMode(false)} />;
+  }
   if (!session) return <AuthFlow />;
 
   // Wait until we know the onboarding status

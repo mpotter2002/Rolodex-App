@@ -189,10 +189,16 @@ export default function ScanScreen() {
       const phone = pickSharedOrIndexed(phones, index) || '';
       const email = pickSharedOrIndexed(emails, index) || '';
       const website = pickSharedOrIndexed(websites, index) || '';
+      const sharedValueNotes = [
+        phones.length === 1 && phone ? `Shared phone on card: ${phone}` : '',
+        emails.length === 1 && email ? `Shared email on card: ${email}` : '',
+        websites.length === 1 && website ? `Shared website on card: ${website}` : '',
+      ].filter(Boolean);
 
       const notes = [
         form.notes,
         `Imported from a shared business card with: ${names.filter((entry) => entry !== name).join(', ')}`,
+        ...sharedValueNotes,
       ]
         .map((value) => value.trim())
         .filter(Boolean)
@@ -436,7 +442,7 @@ export default function ScanScreen() {
             <View>
               <Text style={s.reviewTitle}>Review extracted choices</Text>
               <Text style={s.reviewSub}>
-                Pick the values you want to keep before saving. Extra selected emails, phones, and websites are preserved in notes for now.
+                Pick the values you want to keep before saving. If you select multiple names, Rolo will create one contact per name and preserve shared values in notes.
               </Text>
             </View>
             <TouchableOpacity style={s.reviewDismiss} onPress={() => setReviewResult(null)}>
